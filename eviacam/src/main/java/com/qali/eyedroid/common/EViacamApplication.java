@@ -22,37 +22,9 @@ import android.app.Application;
 import android.os.Process;
 import android.util.Log;
 
-import org.acra.ACRA;
-import org.acra.ReportField;
-import org.acra.ReportingInteractionMode;
-import org.acra.annotation.ReportsCrashes;
-import com.qali.eyedroid.BuildConfig;
 /**
  * Customized application class
  */
-
-/* Annotation for ACRA */
-@ReportsCrashes(
-        formUri = "http://eva.crea-si.com/submit.php",
-        mode = ReportingInteractionMode.TOAST,
-        customReportContent = {
-                ReportField.APP_VERSION_CODE,
-                ReportField.APP_VERSION_NAME,
-                ReportField.ANDROID_VERSION,
-                ReportField.PACKAGE_NAME,
-                ReportField.REPORT_ID,
-                ReportField.BUILD,
-                ReportField.PHONE_MODEL,
-                ReportField.CUSTOM_DATA,
-                ReportField.STACK_TRACE,
-                ReportField.LOGCAT },
-        logcatArguments = { "-t", "100", "-v", "time" },
-        resToastText = com.qali.eyedroid.R.string.crash_toast_text,
-        resDialogText = com.qali.eyedroid.R.string.crash_dialog_text,
-        resDialogCommentPrompt = com.qali.eyedroid.R.string.crash_dialog_comment_prompt,
-        resDialogOkToast = com.qali.eyedroid.R.string.crash_dialog_ok_toast
-)
-
 public class EViacamApplication extends Application {
 
     public void onCreate() {
@@ -67,12 +39,9 @@ public class EViacamApplication extends Application {
         }
 
         /*
-         * Regular application start up. Register uncaught exception handlers. First the one
-         * provided by ACRA and after that our own handler. In case of uncaught exception our
-         * handler is called first so that it can filter some exceptions.
+         * Regular application start up. Register the uncaught exception handler, which
+         * filters some exceptions before letting the default handler run.
          */
-        ACRA.init(this);
-        ACRA.getErrorReporter().putCustomData("BUILD_ORIGIN", BuildConfig.BUILD_ORIGIN);
         UncaughtExceptionHandler.init(this);
 
         if (EVIACAM.isSoftkeyboardProcess()) {

@@ -28,8 +28,6 @@ import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
 
-import org.acra.ACRA;
-
 /**
  * Listens to and dispatches remote requests
  */
@@ -94,8 +92,8 @@ public class RemoteBinderService extends Service {
                 }
                 catch(Exception e) {
                     /* In case of exception, return that the operation
-                       did not work and report the error */
-                    ACRA.getErrorReporter().handleException(e);
+                       did not work and log the error */
+                    Log.e(EVIACAMSOFTKBD.TAG, "Remote click failed", e);
                     return false;
                 }
             }
@@ -108,7 +106,7 @@ public class RemoteBinderService extends Service {
             return futureResult.get();
         } 
         catch (Exception e) {
-            ACRA.getErrorReporter().handleException(e);
+            Log.e(EVIACAMSOFTKBD.TAG, "Remote click failed", e);
         }
         return false;
     }

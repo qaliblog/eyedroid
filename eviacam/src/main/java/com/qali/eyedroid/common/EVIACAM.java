@@ -31,8 +31,6 @@ import android.widget.Toast;
 import com.qali.eyedroid.BuildConfig;
 import com.qali.eyedroid.util.HeartBeat;
 
-import org.acra.util.IOUtils;
-
 import java.io.FileInputStream;
 import java.io.IOException;
 
@@ -137,8 +135,11 @@ public class EVIACAM {
      */
     @Nullable
     private static String getCurrentProcessName() {
-        try {
-            return IOUtils.streamToString(new FileInputStream("/proc/self/cmdline")).trim();
+        try (FileInputStream in = new FileInputStream("/proc/self/cmdline")) {
+            byte[] buffer = new byte[256];
+            int length = in.read(buffer);
+            if (length <= 0) return null;
+            return new String(buffer, 0, length).trim();
         } catch (IOException e) {
             return null;
         }

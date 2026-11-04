@@ -27,8 +27,6 @@ import android.util.Log;
 
 import com.qali.eyedroid.R;
 
-import org.acra.ACRA;
-
 @SuppressWarnings("WeakerAccess")
 public class Preferences {
     /**
@@ -482,7 +480,7 @@ public class Preferences {
 
     public void setACRAEnabled (boolean value) {
         SharedPreferences.Editor spe= mSharedPreferences.edit();
-        spe.putBoolean(ACRA.PREF_ENABLE_ACRA, value);
+        spe.putBoolean("acra.enable", value);
         spe.apply();
     }
 

@@ -18,8 +18,6 @@
  */
 package com.qali.eyedroid.common;
 
-import org.acra.ACRA;
-
 import com.qali.eyedroid.BuildConfig;
 import com.qali.eyedroid.R;
 import com.qali.eyedroid.camera.Camera;
@@ -666,7 +664,7 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
             /* Exception during initialization. Non recoverable. */
             cleanup();
 
-            ACRA.getErrorReporter().handleSilentException(cameraException);
+            Log.e(EVIACAM.TAG, "Camera initialization failed", cameraException);
 
             /* Notify whoever requested the initialization */
             mHandler.post(new Runnable() {
@@ -690,7 +688,7 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
             }
 
             if (cameraException.getProblem() != CameraException.CAMERA_DISABLED) {
-                ACRA.getErrorReporter().handleSilentException(cameraException);
+                Log.e(EVIACAM.TAG, "Camera error", cameraException);
             }
         }
 
@@ -721,13 +719,6 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
                 }
             });
         }
-        /*
-        adb.setPositiveButton(mService.getText(R.string.send_report),
-                new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int which) {
-                        ACRA.getErrorReporter().handleException(error);
-                    }});
-        */
         AlertDialog ad= adb.create();
         //noinspection ConstantConditions
         ad.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);

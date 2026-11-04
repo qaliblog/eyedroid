@@ -73,7 +73,6 @@ dependencies {
     implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
 
     implementation 'com.google.android.gms:play-services-analytics:8.3.0'
-    implementation 'ch.acra:acra:4.9.2'
 
     implementation 'com.google.mediapipe:tasks-vision:0.10.14'
 }

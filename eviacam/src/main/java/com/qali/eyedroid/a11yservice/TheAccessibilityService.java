@@ -41,8 +41,6 @@ import com.qali.eyedroid.common.CrashRegister;
 import com.qali.eyedroid.common.Engine;
 import com.qali.eyedroid.common.Preferences;
 
-import org.acra.ACRA;
-
 /**
  * The Enable Viacam accessibility service
  */
@@ -111,9 +109,7 @@ public class TheAccessibilityService extends AccessibilityService
          * called-when-running-on-emulator
          */
         if (mServiceStarted) {
-            Log.w(TAG, "Accessibility service already running! Stop here.");
-            ACRA.getErrorReporter().handleException(new IllegalStateException(
-                    "Accessibility service already running! Stop here."), true);
+            Log.e(TAG, "Accessibility service already running! Stop here.");
             return;
         }
 

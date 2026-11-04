@@ -24,5 +24,4 @@ configurations.all {
 dependencies {
     implementation project(':input_method_aidl')
     implementation 'androidx.annotation:annotation:1.7.1'
-    implementation 'ch.acra:acra:4.9.2'
 }
