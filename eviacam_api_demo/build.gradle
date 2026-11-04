@@ -1,0 +1,20 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'com.crea_si.eviacam.api_demo'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.crea_si.eviacam.api_demo"
+        minSdk 21
+        targetSdk 24
+    }
+
+    lint {
+        abortOnError false
+    }
+}
+
+dependencies {
+    implementation project(':eviacam_api')
+}

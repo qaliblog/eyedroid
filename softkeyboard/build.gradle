@@ -1,0 +1,28 @@
+apply plugin: 'com.android.library'
+
+android {
+    namespace 'com.crea_si.softkeyboard'
+    compileSdk 34
+
+    defaultConfig {
+        minSdk 21
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    lint {
+        abortOnError false
+    }
+}
+
+configurations.all {
+    exclude group: 'com.android.support'
+}
+
+dependencies {
+    implementation project(':input_method_aidl')
+    implementation 'androidx.annotation:annotation:1.7.1'
+    implementation 'ch.acra:acra:4.9.2'
+}

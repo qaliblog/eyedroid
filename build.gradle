@@ -1,0 +1,20 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+buildscript {
+    repositories {
+        // mirror that proxies both Google Maven and Maven Central
+        maven { url 'https://maven.myket.ir' }
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.5.2'
+    }
+}
+
+allprojects {
+    repositories {
+        maven { url 'https://maven.myket.ir' }
+        google()
+        mavenCentral()
+    }
+}

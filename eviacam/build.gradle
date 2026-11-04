@@ -1,0 +1,80 @@
+apply plugin: 'com.android.application'
+
+/* Gets the version code from version.properties */
+def getVersionCode = { ->
+    def versionPropsFile = file('../version.properties')
+
+    if (versionPropsFile.canRead()) {
+        def Properties versionProps = new Properties()
+        versionProps.load(new FileInputStream(versionPropsFile))
+        return versionProps['VERSION_CODE'].toInteger()
+    }
+    else {
+        throw new GradleException("Could not read version.properties!")
+    }
+}
+
+android {
+    namespace 'com.qali.eyedroid'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.qali.eyedroid"
+        minSdk 24
+        // kept low so that the accessibility overlay and settings activity keep
+        // working the way the app was designed (see AndroidManifest.xml)
+        targetSdk 24
+
+        versionCode getVersionCode()
+        versionName "1.0"
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    signingConfigs {
+        release {
+            storeFile file("eyedroid-release.jks")
+            storePassword "eyedroid2024"
+            keyAlias "eyedroid"
+            keyPassword "eyedroid2024"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+            buildConfigField "String", "BUILD_ORIGIN", "\"regular\""
+        }
+
+        debug {
+            buildConfigField "String", "BUILD_ORIGIN", "\"regular\""
+        }
+    }
+
+    lint {
+        abortOnError false
+    }
+}
+
+configurations.all {
+    exclude group: 'com.android.support'
+}
+
+dependencies {
+    implementation project(':opencv')
+    implementation project(':input_method_aidl')
+    implementation project(':eviacam_api')
+    implementation project(':softkeyboard')
+
+    implementation 'androidx.annotation:annotation:1.7.1'
+    implementation 'androidx.core:core:1.12.0'
+    implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
+
+    implementation 'com.google.android.gms:play-services-analytics:8.3.0'
+    implementation 'ch.acra:acra:4.9.2'
+
+    implementation 'com.google.mediapipe:tasks-vision:0.10.14'
+}
