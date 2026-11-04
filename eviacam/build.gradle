@@ -64,7 +64,6 @@ configurations.all {
 }
 
 dependencies {
-    implementation project(':opencv')
     implementation project(':input_method_aidl')
     implementation project(':eviacam_api')
     implementation project(':softkeyboard')

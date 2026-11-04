@@ -37,31 +37,29 @@ import com.google.mediapipe.tasks.vision.core.RunningMode;
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarker;
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarkerResult;
 
-import org.opencv.android.Utils;
-import org.opencv.core.Mat;
-
 import java.util.List;
 import java.util.Optional;
 
 /**
- * Pupil detector based on the MediaPipe face landmarker
+ * Face detector based on the MediaPipe face landmarker
  *
- * The face mesh of the face landmarker contains five landmarks for each iris
- * (indices 468-472 for one eye and 473-477 for the other one). Their centroid is
- * used as the pupil position. Eyelid closure is taken from the "eyeBlinkLeft" and
- * "eyeBlinkRight" blendshapes, which MediaPipe defines relative to the subject's
- * face (not relative to the image), so the frame is deliberately NOT mirrored here.
+ * The face mesh contains five landmarks for each iris (indices 468-472 for one eye
+ * and 473-477 for the other one). Their centroid is used as the pupil position.
+ * Eyelid closure is taken from the "eyeBlinkLeft" and "eyeBlinkRight" blendshapes,
+ * which MediaPipe defines relative to the subject's face (not relative to the image),
+ * so the frame is deliberately NOT mirrored here.
  *
- * Detections are throttled to limit CPU usage. The detector must only be used from
- * a single thread (the camera frame processing thread).
+ * The head direction (yaw and pitch) is computed from the face mesh: the position of
+ * the nose tip relative to the middle of the face, normalized by the size of the face.
+ * This replaces the old OpenCV based optical flow pipeline, which required native
+ * libraries and was the reason the pointer did not work when they were missing.
+ *
+ * The detector runs synchronously on the camera analysis thread and is not thread safe.
  */
 public class MediaPipePupilDetector implements PupilDetector {
 
     /* asset with the face landmarker model */
     private static final String MODEL_ASSET= "face_landmarker.task";
-
-    /* minimum time between two consecutive detections (milliseconds) */
-    private static final long DETECTION_INTERVAL_MS= 100;
 
     /* iris landmarks */
     private static final int[] IRIS_LEFT= {468, 469, 470, 471, 472};
@@ -69,6 +67,13 @@ public class MediaPipePupilDetector implements PupilDetector {
 
     /* minimum number of landmarks required to have iris information */
     private static final int MIN_LANDMARKS= 478;
+
+    /* face mesh landmarks used to estimate the head direction */
+    private static final int NOSE_TIP= 1;
+    private static final int FACE_LEFT= 234;
+    private static final int FACE_RIGHT= 454;
+    private static final int FOREHEAD= 10;
+    private static final int CHIN= 152;
 
     /* eyelid landmarks used when blendshapes are not available */
     private static final int LEFT_EYE_TOP= 159, LEFT_EYE_BOTTOM= 145;
@@ -80,11 +85,6 @@ public class MediaPipePupilDetector implements PupilDetector {
     private static final float EYE_OPEN_RATIO= 0.25f;
 
     private FaceLandmarker mLandmarker;
-
-    /* reusable frame to avoid allocating a bitmap for each detection */
-    private Bitmap mFrameBitmap;
-
-    private long mLastDetectionTimeStamp= 0;
 
     @Override
     public boolean initialize(@NonNull Context context) {
@@ -105,11 +105,11 @@ public class MediaPipePupilDetector implements PupilDetector {
                             .build();
 
             mLandmarker= FaceLandmarker.createFromOptions(context, options);
-            if (BuildConfig.DEBUG) Log.d(EVIACAM.TAG, "MediaPipe pupil detector initialized");
+            if (BuildConfig.DEBUG) Log.d(EVIACAM.TAG, "MediaPipe face detector initialized");
             return true;
         }
         catch (Throwable e) {
-            Log.e(EVIACAM.TAG, "MediaPipe pupil detector could not be initialized", e);
+            Log.e(EVIACAM.TAG, "MediaPipe face detector could not be initialized", e);
             mLandmarker= null;
             return false;
         }
@@ -122,51 +122,38 @@ public class MediaPipePupilDetector implements PupilDetector {
 
     @Override
     @Nullable
-    public PupilDetection detect(@NonNull Mat rgba, int rotationDegrees) {
+    public PupilDetection detect(@NonNull Bitmap frame, int rotationDegrees) {
         final FaceLandmarker landmarker= mLandmarker;
-        if (landmarker == null) return null;
-        if (rgba.empty() || rgba.width() <= 0 || rgba.height() <= 0) return null;
+        if (landmarker == null || frame.isRecycled()) return null;
 
-        final long now= System.currentTimeMillis();
-        if (now - mLastDetectionTimeStamp < DETECTION_INTERVAL_MS) return null;
-        mLastDetectionTimeStamp= now;
+        Bitmap upright= null;
 
         try {
-            Bitmap frame= getFrameBitmap(rgba.width(), rgba.height());
-            Utils.matToBitmap(rgba, frame);
-
-            MPImage image= buildMpImage(frame, rotationDegrees);
-            if (image == null) return null;
+            upright= rotate(frame, rotationDegrees);
+            MPImage image= new BitmapImageBuilder(upright).build();
 
             FaceLandmarkerResult result= landmarker.detect(image);
-            return extract(result, now);
+            return extract(result, System.currentTimeMillis());
         }
         catch (Throwable e) {
-            Log.e(EVIACAM.TAG, "MediaPipe pupil detection failed", e);
+            Log.e(EVIACAM.TAG, "MediaPipe face detection failed", e);
             return null;
+        }
+        finally {
+            if (upright != null && upright != frame && !upright.isRecycled()) {
+                upright.recycle();
+            }
         }
     }
 
     @NonNull
-    private Bitmap getFrameBitmap(int width, int height) {
-        Bitmap bmp= mFrameBitmap;
-        if (bmp == null || bmp.getWidth() != width || bmp.getHeight() != height) {
-            bmp= Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-            mFrameBitmap= bmp;
-        }
-        return bmp;
-    }
+    private static Bitmap rotate(@NonNull Bitmap src, int rotationDegrees) {
+        final int rotation= ((rotationDegrees % 360) + 360) % 360;
+        if (rotation == 0) return src;
 
-    @Nullable
-    private static MPImage buildMpImage(@NonNull Bitmap src, int rotationDegrees) {
-        Bitmap bmp= src;
-        int rotation= ((rotationDegrees % 360) + 360) % 360;
-        if (rotation != 0) {
-            Matrix m= new Matrix();
-            m.postRotate(rotation);
-            bmp= Bitmap.createBitmap(src, 0, 0, src.getWidth(), src.getHeight(), m, true);
-        }
-        return new BitmapImageBuilder(bmp).build();
+        Matrix m= new Matrix();
+        m.postRotate(rotation);
+        return Bitmap.createBitmap(src, 0, 0, src.getWidth(), src.getHeight(), m, true);
     }
 
     @Nullable
@@ -198,8 +185,35 @@ public class MediaPipePupilDetector implements PupilDetector {
                     RIGHT_EYE_TOP, RIGHT_EYE_BOTTOM, RIGHT_EYE_CORNER_A, RIGHT_EYE_CORNER_B);
         }
 
+        float yaw= headYaw(landmarks);
+        float pitch= headPitch(landmarks);
+
         return new PupilDetection(pupilX, pupilY, clampUnit(blinkLeft), clampUnit(blinkRight),
-                timestamp);
+                yaw, pitch, timestamp);
+    }
+
+    /**
+     * Horizontal direction of the head: the nose tip relative to the middle of the
+     * cheeks, normalized by the distance between the cheeks.
+     */
+    private static float headYaw(@NonNull List<NormalizedLandmark> lm) {
+        final float width= Math.abs(lm.get(FACE_RIGHT).x() - lm.get(FACE_LEFT).x());
+        if (width < 1e-4f) return 0f;
+
+        final float middle= (lm.get(FACE_LEFT).x() + lm.get(FACE_RIGHT).x()) * 0.5f;
+        return (lm.get(NOSE_TIP).x() - middle) / width;
+    }
+
+    /**
+     * Vertical direction of the head: the nose tip relative to the middle of the face
+     * (forehead to chin), normalized by the height of the face.
+     */
+    private static float headPitch(@NonNull List<NormalizedLandmark> lm) {
+        final float height= Math.abs(lm.get(CHIN).y() - lm.get(FOREHEAD).y());
+        if (height < 1e-4f) return 0f;
+
+        final float middle= (lm.get(FOREHEAD).y() + lm.get(CHIN).y()) * 0.5f;
+        return (lm.get(NOSE_TIP).y() - middle) / height;
     }
 
     private static float centroidX(@NonNull List<NormalizedLandmark> lm, @NonNull int[] idx) {
@@ -264,11 +278,6 @@ public class MediaPipePupilDetector implements PupilDetector {
                 Log.w(EVIACAM.TAG, "Error closing MediaPipe face landmarker", e);
             }
             mLandmarker= null;
-        }
-
-        if (mFrameBitmap != null) {
-            mFrameBitmap.recycle();
-            mFrameBitmap= null;
         }
     }
 }

@@ -19,9 +19,9 @@
 package com.qali.eyedroid.vision;
 
 /**
- * Result of a single pupil detection
+ * Result of a single face detection
  *
- * All the coordinates are normalized to the camera frame (i.e. in the range 0 to 1)
+ * The pupil coordinates are normalized to the camera frame (i.e. in the range 0 to 1)
  * and are relative to the image as captured by the camera (not mirrored).
  */
 public class PupilDetection {
@@ -34,14 +34,25 @@ public class PupilDetection {
     public final float blinkLeft;
     public final float blinkRight;
 
+    /*
+     * Head direction obtained from the face mesh, both normalized by the size of the
+     * face: yaw is 0 when the face is frontal and grows when the head turns, pitch is
+     * the vertical position of the nose relative to the middle of the face.
+     */
+    public final float headYaw;
+    public final float headPitch;
+
     /* time stamp of the detection in milliseconds */
     public final long timestamp;
 
-    public PupilDetection(float x, float y, float blinkLeft, float blinkRight, long timestamp) {
+    public PupilDetection(float x, float y, float blinkLeft, float blinkRight,
+                          float headYaw, float headPitch, long timestamp) {
         this.x= x;
         this.y= y;
         this.blinkLeft= blinkLeft;
         this.blinkRight= blinkRight;
+        this.headYaw= headYaw;
+        this.headPitch= headPitch;
         this.timestamp= timestamp;
     }
 }

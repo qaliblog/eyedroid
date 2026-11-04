@@ -27,13 +27,11 @@ import android.preference.CheckBoxPreference;
 import android.preference.ListPreference;
 import android.preference.Preference;
 import android.preference.Preference.OnPreferenceChangeListener;
-import android.preference.PreferenceCategory;
 import android.preference.PreferenceFragment;
 import android.preference.PreferenceGroup;
 
 import com.qali.eyedroid.BuildConfig;
 import com.qali.eyedroid.R;
-import com.qali.eyedroid.camera.Camera;
 import com.qali.eyedroid.util.NumberPickerPreference;
 
 /**
@@ -139,20 +137,6 @@ public class MousePreferencesActivity extends Activity {
                     return true;
                 }
             });
-
-            /*
-             * Remove camera2 related preferences if not supported by the device
-             */
-            if (!Camera.hasCamera2Support()) {
-                PreferenceCategory advanced = (PreferenceCategory) findPreference("advanced");
-                if (null != advanced) {
-                    getPreferenceScreen().removePreference(advanced);
-                }
-            }
-            else {
-                ListPreference lp = (ListPreference) findPreference(Preferences.KEY_USE_CAMERA2_API);
-                lp.setOnPreferenceChangeListener(new ListPreferenceUpdate(lp));
-            }
 
             /*
              * Remove preferences not applicable in slave mode

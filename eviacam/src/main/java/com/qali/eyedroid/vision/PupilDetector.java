@@ -19,13 +19,12 @@
 package com.qali.eyedroid.vision;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import org.opencv.core.Mat;
-
 /**
- * Detects the position of the pupils (irises) and the eyelid closure of each eye
+ * Detects the pupils, the eyelid closure of each eye and the head direction
  *
  * Implementations are not required to run a detection for each call. They should
  * instead decide, according to their own time budget, whether it is time to perform
@@ -47,17 +46,17 @@ public interface PupilDetector {
     boolean isReady();
 
     /**
-     * Detect pupils on the given frame
+     * Detect the face on the given frame
      *
      * NOTE: this method is blocking and must be called from a secondary thread
      *
-     * @param rgba camera frame
+     * @param frame camera frame
      * @param rotationDegrees rotation that needs to be applied to the frame in order
      *                        to get an upright face
-     * @return the detection or null if there is no new detection available
+     * @return the detection or null if there is no face (or no new detection available)
      */
     @Nullable
-    PupilDetection detect(@NonNull Mat rgba, int rotationDegrees);
+    PupilDetection detect(@NonNull Bitmap frame, int rotationDegrees);
 
     /**
      * Release all the resources used by the detector

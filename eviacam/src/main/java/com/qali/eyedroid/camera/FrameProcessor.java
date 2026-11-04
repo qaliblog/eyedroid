@@ -19,10 +19,8 @@
 
 package com.qali.eyedroid.camera;
 
+import android.graphics.Bitmap;
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-
-import org.opencv.core.Mat;
 
 /**
  * Interface to implement a callback each time a camera frame is captured
@@ -30,9 +28,12 @@ import org.opencv.core.Mat;
 public interface FrameProcessor {
     /**
      * Process a captured frame
-     * @param rgba captured frame
+     *
+     * NOTE: called from the camera analysis thread, never from the UI thread
+     *
+     * @param frame captured frame
      */
-    void processFrame(@NonNull Mat rgba);
+    void processFrame(@NonNull Bitmap frame);
 
     /**
      * Called when the camera is started

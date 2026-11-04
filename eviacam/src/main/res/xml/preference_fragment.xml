@@ -228,21 +228,6 @@
     </PreferenceCategory>
 
     <PreferenceCategory
-        android:key="advanced"
-        android:title="@string/settings_advanced">
-
-    <ListPreference
-        android:key="use_camera2_api"
-        android:title="@string/settings_use_camera2_api"
-        android:summary="%s"
-        android:entries="@array/use_camera2_api_entries"
-        android:entryValues="@array/use_camera2_api_entries_values"
-        android:defaultValue="@string/use_camera2_api_entries_default"
-        />
-
-    </PreferenceCategory>
-
-    <PreferenceCategory
         android:key="help"
         android:title="@string/settings_help">
 

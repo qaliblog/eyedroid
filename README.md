@@ -1,70 +1,133 @@
-# [EVA Facial Mouse](https://play.google.com/store/apps/details?id=com.crea_si.eviacam.service)
+# EyeDroid
 
-EVA Facial Mouse allows the user to **control an Android&trade; device by tracking the face**.
+EyeDroid allows the user to **control an Android&trade; device by tracking the face**.
 
-Based on the movement of the face captured through the **front camera**, the app allows the user to control a pointer on the screen (i.e., like a mouse), which provides direct access to most elements of the user interface.
+Based on the movement of the face captured through the **front camera**, the app moves a
+pointer on the screen (i.e., like a mouse), which provides direct access to most elements of
+the user interface. It is a fork of [EVA Facial Mouse](https://github.com/cmauri/eva_facial_mouse)
+rebranded as `com.qali.eyedroid`.
 
-[![Video of EVA](https://raw.githubusercontent.com/cmauri/eva_facial_mouse/develop/images/video.gif)](https://www.youtube.com/watch?v=ED4EgNoB8hs)<br>
-[Watch the video (2:30)](https://www.youtube.com/watch?v=ED4EgNoB8hs)
+## How it works
 
-## Quick Start
-[![Android App on Google Play](https://raw.githubusercontent.com/cmauri/eva_facial_mouse/develop/images/google-play-badge.png)](https://play.google.com/store/apps/details?id=com.crea_si.eva_facial_mouse)
+* Frames are captured with the legacy `android.hardware.Camera` API and converted to
+  bitmaps with no native computer-vision dependency.
+* [MediaPipe Face Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker)
+  (FaceMesh) runs on-device and provides the landmarks, eye blendshapes and head pose used
+  by the app. No OpenCV is required any more, which removes the missing
+  `libopencv_java*.so` / `libvisionpipeline.so` failures on devices that could not load the
+  old native pipeline.
+* Head direction is derived from the landmarks (nose tip vs. cheek and forehead/chin
+  midpoints, normalized by face size), so the cursor keeps working while the head is held
+  still as well as when it moves.
+* The pupil position inside the eye is used for fine cursor movement, and eye blinks drive
+  clicking: a half blink of one eye is a click/hold, and looking at the screen edge scrolls.
 
-## For whom is EVA?
+## Features
 
-EVA is intended for those who cannot use a touchscreen. For instance, some people with amputations, cerebral palsy, spinal cord injury, muscular dystrophy, multiple sclerosis, amyotrophic lateral sclerosis (ALS) or other disabilities may benefit from this app.
+* Circular cursor with blink feedback.
+* Selectable tracking eye (left or right).
+* Adjustable head-tracking strength (default 10) and typed numeric inputs for thresholds.
+* Built-in simplified keyboard for Android versions where third-party keyboards do not work.
+
+## For whom is EyeDroid?
+
+EyeDroid is intended for those who cannot use a touchscreen. For instance, some people with
+amputations, cerebral palsy, spinal cord injury, muscular dystrophy, multiple sclerosis,
+amyotrophic lateral sclerosis (ALS) or other disabilities may benefit from this app.
 
 ## Requirements
 
 * Mobile phone or tablet
-* Android 4.1 (Jelly Bean) or higher
+* Android 7.0 (API 24) or higher
 * Front camera
 * Dual-core processor or higher
-
-See the [list of devices tested with EVA](https://docs.google.com/spreadsheets/d/1gxuIKbw92d9USPT_SvM0iCdWjtnVcx7owJAgwM6Za6w/).
 
 ## Limitations
 
 Due to pre-existing restrictions of the Android platform, there are currently some limitations.
 
 * It cannot be used simultaneously with other applications that make use of the camera.
-* For Android versions prior to 5.1 most standard keyboards do not work with EVA, so a basic keyboard is provided. Such a keyboard needs to be manually activated after the installation.
-* Does not work with most games. 
-* Browsers do not handle properly some actions (we recommend using Google Chrome).
+* On some Android versions most standard keyboards do not work with the app, so a basic
+  keyboard is provided. Such a keyboard needs to be manually activated after installation.
+* Does not work with most games.
+* Browsers do not handle properly some actions (Chrome is recommended).
 * Applications such as Maps, Earth and Gallery work with restrictions.
 
-For obvious reasons, EVA has not been tested with all devices available on the market. If you find any issues with your device, please, let us know.
+## Building
 
-## FAQ
-### Can I use a regular keyboard?
-For Android 5.1 and higher it seems that [GBoard](https://play.google.com/store/apps/details?id=com.google.android.inputmethod.latin) works well with EVA.
+### Requirements
 
-### I receive the message "Because an app is obscuring a permission request, Settings can't verify your response". What can I do?
-This is due to other apps having the "Draw over other apps" permission granted. Try the following:
-- In Settings > Apps > Configure apps (Gear Icon) > Draw over other apps
-- Disable the permission one by one for all apps other than EVA to find out which one interferes with EVA.
+* JDK 17
+* Android SDK with platform `android-34` and build-tools `34.0.0`
+* Gradle 8.11.1 (the wrapper in this repository already points to it)
+* No NDK is needed: the old OpenCV native sources under `eviacam/src/main/jni` are no longer
+  built, and the MediaPipe natives ship prebuilt in the `tasks-vision` AAR.
 
-## Thanks
+### Setup
 
-EVA Facial Mouse has been developed with the support of [Fundación Vodafone España](http://www.fundacionvodafone.es) and the collaboration of experts and users from organizations of [ASPACE Confederación](http://www.aspace.org) (Spain). Namely, ASPACE Asturias, ASPACE Barcelona, ASPACE Gipuzkoa, ASPACE Granada, APPC Tarragona and AVAPACE. Furthermore, it has been tested by CEAPAT, CRE (León) and ASPAYM Castilla y León.
+1. Install the Android SDK and point the build at it, either with `ANDROID_HOME` /
+   `ANDROID_SDK_ROOT` or by creating `local.properties` next to this file:
 
-* Christian Bieder (German localization)
-* Yaron Shahrabani (Hebrew localization)
+   ```properties
+   sdk.dir=/path/to/android-sdk
+   ```
 
-## Awards
-- Nominee in the GSMA Glomo Awards. February, 2017.
+2. Make sure the required SDK packages are installed:
 
-  ![](https://raw.githubusercontent.com/cmauri/eva_facial_mouse/develop/images/glomo_awards_nominee.png)
-- Selected as "Good Practice" in the “International Design For All Foundation Good Practices Awards”. January, 2017.
+   ```bash
+   sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+   ```
 
-  ![](https://raw.githubusercontent.com/cmauri/eva_facial_mouse/develop/images/deisng4all.png)
+Dependencies are resolved from `https://maven.myket.ir` (a mirror that proxies Google Maven
+and Maven Central) with `google()` and `mavenCentral()` as fallbacks, and the MediaPipe model
+`eviacam/src/main/assets/face_landmarker.task` is committed, so no extra download step is
+needed.
 
-- 1st prize in “Concurso de Productos de Apoyo y Soluciones de Bajo Coste". CRMF IMSERSO Albacete (Spain). July, 2016.
+### Build commands
 
-  ![](https://raw.githubusercontent.com/cmauri/eva_facial_mouse/develop/images/bajo_coste.png)
+Debug build:
+
+```bash
+./gradlew :eviacam:assembleDebug
+```
+
+Signed release build:
+
+```bash
+./gradlew :eviacam:assembleRelease
+```
+
+The APK is written to:
+
+```
+eviacam/build/outputs/apk/release/eviacam-release.apk
+```
+
+Install it on a connected device with:
+
+```bash
+adb install -r eviacam/build/outputs/apk/release/eviacam-release.apk
+```
+
+If the wrapper cannot download Gradle, an installed Gradle 8.11.1 works as well:
+
+```bash
+gradle :eviacam:assembleRelease --no-daemon
+```
+
+### Signing
+
+The release build is signed with the keystore committed at
+`eviacam/eyedroid-release.jks` (alias `eyedroid`, password `eyedroid2024`, configured in
+`eviacam/build.gradle`). That makes local builds installable, but it also means the key is
+public: replace the keystore and credentials before publishing your own release.
+
+The version code lives in `version.properties` (`VERSION_CODE=42`); bump it before shipping
+an update.
 
 ## Licence
 
-EVA Facial Mouse is released under GNU/GPL v3.0
+EyeDroid is released under GNU/GPL v3.0, like the original EVA Facial Mouse.
 
-Developed by [Cesar Mauri](mailto:cesar@crea-si.com)
+Original app developed by [Cesar Mauri](mailto:cesar@crea-si.com) and the
+[CREA-Si](http://www.crea-si.com) team.

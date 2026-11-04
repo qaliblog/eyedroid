@@ -19,12 +19,11 @@
 package com.qali.eyedroid.common;
 
 import org.acra.ACRA;
-import org.opencv.android.CameraException;
-import org.opencv.core.Mat;
 
 import com.qali.eyedroid.BuildConfig;
 import com.qali.eyedroid.R;
 import com.qali.eyedroid.camera.Camera;
+import com.qali.eyedroid.camera.CameraException;
 import com.qali.eyedroid.camera.CameraLayerView;
 import com.qali.eyedroid.camera.FrameProcessor;
 import com.qali.eyedroid.vision.MediaPipePupilDetector;
@@ -38,6 +37,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.Bitmap;
 import android.graphics.PointF;
 import android.os.Handler;
 import androidx.annotation.NonNull;
@@ -103,6 +103,18 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
 
     /* Last time a face has been detected */
     private volatile long mLastFaceDetectionTimeStamp;
+
+    /* reference capture size, head motion is expressed in pixels of this frame size */
+    private static final float REFERENCE_WIDTH= 352f;
+    private static final float REFERENCE_HEIGHT= 288f;
+
+    /* head direction changes bigger than this are considered tracking errors */
+    private static final float MAX_HEAD_DIRECTION_STEP= 0.15f;
+
+    /* previous head direction, used to compute the motion between two detections */
+    private float mPrevHeadYaw;
+    private float mPrevHeadPitch;
+    private boolean mHasPrevHeadDirection= false;
 
     /* pupil detection based on MediaPipe (optional) */
     private PupilDetector mPupilDetector;
@@ -379,11 +391,12 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
 
         mCameraLayerView.enableDetectionFeedback();
         
+        // set wait state until camera actually starts or error. It must be set
+        // before starting because the camera can open synchronously.
+        mWaitState= true;
+
         // start processing frames
         mCamera.startCamera();
-
-        // set wait state until camera actually starts or error
-        mWaitState= true;
     }
 
     @Override
@@ -546,6 +559,10 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
         // Call derived
         onCleanup();
 
+        /* the camera must stop first: its analysis thread is the only user of the detector */
+        mCamera.cleanup();
+        mCamera = null;
+
         if (mPupilDetector != null) {
             mPupilDetector.cleanup();
             mPupilDetector= null;
@@ -555,9 +572,6 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
             mPupilMotionControl.cleanup();
             mPupilMotionControl= null;
         }
-
-        mCamera.cleanup();
-        mCamera = null;
 
         mOrientationManager.cleanup();
         mOrientationManager= null;
@@ -728,10 +742,10 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
     /**
      * Process incoming camera frames (called from a secondary thread)
      *
-     * @param rgba opencv matrix with the captured image
+     * @param frame camera frame, as captured by the camera
      */
     @Override
-    public void processFrame(@NonNull Mat rgba) {
+    public void processFrame(@NonNull Bitmap frame) {
         // For these states do nothing
         if (mCurrentState== STATE_DISABLED || mCurrentState== STATE_STOPPED ||
                 isInWaitState()) return;
@@ -742,27 +756,41 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
          */
         int pictRotation = mOrientationManager.getPictureRotation();
 
-        // set preview rotation
-        mCamera.setPreviewRotation(pictRotation);
-
-        // call jni part to detect and track face
-        mMotion.x= mMotion.y= 0.0f;
-        boolean faceDetected=
-                VisionPipeline.processFrame(
-                        rgba.getNativeObjAddr(),
-                        mOrientationManager.getPictureFlip().getValue(),
-                        pictRotation,
-                        mMotion);
-
-        if (faceDetected) mLastFaceDetectionTimeStamp= System.currentTimeMillis();
-
-        // compensate mirror effect
-        mMotion.x = -mMotion.x;
-
-        // pupil detection (throttled internally, runs on this thread)
+        // MediaPipe face mesh provides pupils, blinks and head direction in one pass
         PupilDetection pupilDetection= null;
-        if (faceDetected && mPupilDetector != null) {
-            pupilDetection= mPupilDetector.detect(rgba, pictRotation);
+        if (mPupilDetector != null) {
+            pupilDetection= mPupilDetector.detect(frame, pictRotation);
+        }
+
+        boolean faceDetected= pupilDetection != null;
+
+        /*
+         * Head motion is the frame to frame change of the head direction (yaw/pitch),
+         * converted into the pixel units used by the pointer control.
+         */
+        mMotion.x= mMotion.y= 0.0f;
+        if (pupilDetection != null) {
+            if (mHasPrevHeadDirection) {
+                float deltaYaw= pupilDetection.headYaw - mPrevHeadYaw;
+                float deltaPitch= pupilDetection.headPitch - mPrevHeadPitch;
+
+                // discard jumps (e.g. the face was lost and found again elsewhere)
+                if (Math.abs(deltaYaw) <= MAX_HEAD_DIRECTION_STEP &&
+                        Math.abs(deltaPitch) <= MAX_HEAD_DIRECTION_STEP) {
+                    // compensate mirror effect (the camera frame is not mirrored)
+                    mMotion.x= -deltaYaw * REFERENCE_WIDTH;
+                    mMotion.y= deltaPitch * REFERENCE_HEIGHT;
+                }
+            }
+
+            mPrevHeadYaw= pupilDetection.headYaw;
+            mPrevHeadPitch= pupilDetection.headPitch;
+            mHasPrevHeadDirection= true;
+            mLastFaceDetectionTimeStamp= System.currentTimeMillis();
+        }
+        else {
+            // the next detection starts a new reference
+            mHasPrevHeadDirection= false;
         }
 
         // combine head and pupil motion
