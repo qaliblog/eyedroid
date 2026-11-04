@@ -46,6 +46,12 @@ class PupilMotionControl implements SharedPreferences.OnSharedPreferenceChangeLi
     /* displacements above this value are considered tracking errors and ignored */
     private static final float MAX_PUPIL_STEP= 0.08f;
 
+    /* base scaling of the face position and size, same as the pupils */
+    private static final float FACE_SCALE= 0.25f;
+
+    /* face position/size steps above this value are considered tracking errors */
+    private static final float MAX_FACE_STEP= 0.25f;
+
     /* pupil motion is not applied while the eyes are closed */
     private static final float BLINK_THRESHOLD= 0.4f;
 
@@ -56,6 +62,17 @@ class PupilMotionControl implements SharedPreferences.OnSharedPreferenceChangeLi
     private float mPupilGainX= 1.0f;
     private float mPupilGainY= 1.0f;
     private float mPupilEffectGain= 1.0f;
+
+    // gains of the face position (head translation) and of the head size (distance)
+    private float mFaceGainX= 0.0f;
+    private float mFaceGainY= 0.0f;
+    private float mFaceSizeGain= 0.0f;
+
+    // previous face position and size
+    private float mPrevFaceX= 0.0f;
+    private float mPrevFaceY= 0.0f;
+    private float mPrevFaceSize= 0.0f;
+    private boolean mHasPrevFace= false;
 
     // whether the pupil detector is available
     private boolean mPupilAvailable= false;
@@ -78,7 +95,10 @@ class PupilMotionControl implements SharedPreferences.OnSharedPreferenceChangeLi
         if (key.equals(Preferences.KEY_HEAD_MOTION_STRENGTH) ||
                 key.equals(Preferences.KEY_PUPIL_HORIZONTAL_GAIN) ||
                 key.equals(Preferences.KEY_PUPIL_VERTICAL_GAIN) ||
-                key.equals(Preferences.KEY_PUPIL_EFFECT_GAIN)) {
+                key.equals(Preferences.KEY_PUPIL_EFFECT_GAIN) ||
+                key.equals(Preferences.KEY_FACE_HORIZONTAL_GAIN) ||
+                key.equals(Preferences.KEY_FACE_VERTICAL_GAIN) ||
+                key.equals(Preferences.KEY_FACE_SIZE_GAIN)) {
             updateSettings();
         }
     }
@@ -89,6 +109,9 @@ class PupilMotionControl implements SharedPreferences.OnSharedPreferenceChangeLi
         mPupilGainX= p.getPupilHorizontalGain() / 100.0f;
         mPupilGainY= p.getPupilVerticalGain() / 100.0f;
         mPupilEffectGain= p.getPupilEffectGain() / 100.0f;
+        mFaceGainX= p.getFaceHorizontalGain() / 100.0f;
+        mFaceGainY= p.getFaceVerticalGain() / 100.0f;
+        mFaceSizeGain= p.getFaceSizeGain() / 100.0f;
     }
 
     /**
@@ -105,6 +128,44 @@ class PupilMotionControl implements SharedPreferences.OnSharedPreferenceChangeLi
      */
     void reset() {
         mHasPrevPupil= false;
+        mHasPrevFace= false;
+    }
+
+    /**
+     * Apply the face position and the head size to the motion vector
+     *
+     * These are frame to frame displacements, like the pupil ones: the position of the
+     * face gives the head translation and the size of the face gives the distance to
+     * the camera (moving closer makes the pointer go up). Both effects are disabled by
+     * default and can be scaled up to very large gains from the settings.
+     */
+    private void applyFaceEffects(@NonNull PupilDetection detection, @NonNull PointF out) {
+        if (!mHasPrevFace) {
+            mPrevFaceX= detection.faceX;
+            mPrevFaceY= detection.faceY;
+            mPrevFaceSize= detection.faceSize;
+            mHasPrevFace= true;
+            return;
+        }
+
+        final float dx= detection.faceX - mPrevFaceX;
+        final float dy= detection.faceY - mPrevFaceY;
+        final float dsize= detection.faceSize - mPrevFaceSize;
+
+        mPrevFaceX= detection.faceX;
+        mPrevFaceY= detection.faceY;
+        mPrevFaceSize= detection.faceSize;
+
+        if (Math.abs(dx) <= MAX_FACE_STEP && Math.abs(dy) <= MAX_FACE_STEP) {
+            // the camera image is not mirrored, as with the pupils
+            out.x += -dx * REFERENCE_WIDTH * FACE_SCALE * mFaceGainX;
+            out.y += dy * REFERENCE_HEIGHT * FACE_SCALE * mFaceGainY;
+        }
+
+        if (Math.abs(dsize) <= MAX_FACE_STEP) {
+            // a bigger face means the head is closer to the camera, move the pointer up
+            out.y += -dsize * REFERENCE_HEIGHT * FACE_SCALE * mFaceSizeGain;
+        }
     }
 
     /**
@@ -122,6 +183,12 @@ class PupilMotionControl implements SharedPreferences.OnSharedPreferenceChangeLi
         out.y= (headMotion != null) ? headMotion.y * headGain : 0.0f;
 
         if (!mPupilAvailable || detection == null) return;
+
+        /*
+         * The face position is applied even while the eyes are closed: the head keeps
+         * moving when the user blinks.
+         */
+        applyFaceEffects(detection, out);
 
         if (detection.blinkLeft >= BLINK_THRESHOLD || detection.blinkRight >= BLINK_THRESHOLD) {
             // eyes closed, do not move the pointer

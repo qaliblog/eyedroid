@@ -33,6 +33,7 @@ import com.qali.eyedroid.common.MouseEmulationCallbacks;
 import com.qali.eyedroid.common.DockPanelLayerView;
 import com.qali.eyedroid.common.OverlayView;
 import com.qali.eyedroid.common.Preferences;
+import com.qali.eyedroid.debug.EyeDroidLog;
 import com.qali.eyedroid.vision.PupilDetection;
 
 /**
@@ -74,6 +75,9 @@ class ClickDispatcher implements MouseEmulationCallbacks,
     // the user is winking (half blink) right now
     private volatile boolean mBlinkPressed= false;
 
+    // the wink has been held long enough to be a scroll drag
+    private volatile boolean mBlinkDragging= false;
+
     ClickDispatcher(@NonNull AccessibilityService s, @NonNull OverlayView ov) {
         mAudioManager= (AudioManager) s.getSystemService(Context.AUDIO_SERVICE);
 
@@ -98,10 +102,13 @@ class ClickDispatcher implements MouseEmulationCallbacks,
         /* blink based clicking */
         mBlinkClick= new BlinkClick(new BlinkClick.Listener() {
             @Override
-            public void onBlinkClick() { performBlinkClick(false); }
+            public void onBlinkClick() { performBlinkClick(); }
 
             @Override
-            public void onBlinkLongClick() { performBlinkClick(true); }
+            public void onBlinkHoldStart() { beginBlinkDrag(); }
+
+            @Override
+            public void onBlinkHoldEnd() { endBlinkDrag(); }
 
             @Override
             public void onBlinkScroll(boolean down) { performBlinkScroll(down); }
@@ -318,11 +325,12 @@ class ClickDispatcher implements MouseEmulationCallbacks,
     }
 
     /**
-     * Perform the action associated to the end of a half blink
+     * Perform a click, triggered by a quick half blink
      *
-     * @param longClick true for a long click, false for a regular click
+     * Holding the wink does not reach this method: a held wink is a drag and ends
+     * without clicking.
      */
-    private void performBlinkClick(boolean longClick) {
+    private void performBlinkClick() {
         AccessibilityAction aa= mAccessibilityAction;
         if (aa == null) return;
 
@@ -330,10 +338,32 @@ class ClickDispatcher implements MouseEmulationCallbacks,
         mPointInt.y= (int) mLastPointerLocation.y;
 
         aa.refresh();
-        if (longClick) aa.performLongClick(mPointInt);
-        else aa.performAction(mPointInt);
+        aa.performAction(mPointInt);
 
         if (mSoundOnClick) playSound();
+    }
+
+    /**
+     * The half blink has been held long enough to be a drag
+     *
+     * From here on the content is scrolled (see performBlinkScroll) until the eye is
+     * opened again. Nothing is pressed on the screen, so a drag never turns into an
+     * accidental long click on the element below the pointer.
+     */
+    private void beginBlinkDrag() {
+        mBlinkDragging= true;
+        EyeDroidLog.d(EyeDroidLog.TAG_CURSOR,
+                "Wink held: dragging/scrolling until the eye opens");
+    }
+
+    /**
+     * The eye has been opened again, the drag ends
+     */
+    private void endBlinkDrag() {
+        if (!mBlinkDragging) return;
+
+        mBlinkDragging= false;
+        EyeDroidLog.d(EyeDroidLog.TAG_CURSOR, "Wink drag ended");
     }
 
     /**

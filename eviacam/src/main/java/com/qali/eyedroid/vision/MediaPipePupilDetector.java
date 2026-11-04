@@ -27,6 +27,7 @@ import android.util.Log;
 
 import com.qali.eyedroid.BuildConfig;
 import com.qali.eyedroid.common.EVIACAM;
+import com.qali.eyedroid.common.Preferences;
 import com.qali.eyedroid.debug.Diagnostics;
 import com.qali.eyedroid.debug.EyeDroidLog;
 import com.google.mediapipe.framework.image.BitmapImageBuilder;
@@ -95,21 +96,35 @@ public class MediaPipePupilDetector implements PupilDetector {
     public boolean initialize(@NonNull Context context) {
         if (mLandmarker != null) return true;
 
+        final Preferences preferences= Preferences.get();
+        final boolean gpuRequested= preferences != null && preferences.isMediaPipeGpuEnabled();
+
         try {
-            BaseOptions baseOptions= BaseOptions.builder()
-                    .setModelAssetPath(MODEL_ASSET)
-                    .setDelegate(Delegate.CPU)
-                    .build();
+            if (gpuRequested) {
+                try {
+                    mLandmarker= createLandmarker(context, Delegate.GPU);
+                    Diagnostics.get().setMediaPipeGpu(true);
+                    EyeDroidLog.i(EyeDroidLog.TAG_MEDIAPIPE,
+                            "MediaPipe face landmarker initialized with the GPU delegate");
+                }
+                catch (Throwable gpuError) {
+                    /*
+                     * Not every device provides a working OpenGL context for the GPU
+                     * delegate. Fall back to the CPU instead of leaving the user without
+                     * face tracking.
+                     */
+                    mLandmarker= null;
+                    Diagnostics.get().setMediaPipeGpu(false);
+                    EyeDroidLog.w(EyeDroidLog.TAG_MEDIAPIPE,
+                            "GPU delegate not available, falling back to the CPU", gpuError);
+                }
+            }
 
-            FaceLandmarker.FaceLandmarkerOptions options=
-                    FaceLandmarker.FaceLandmarkerOptions.builder()
-                            .setBaseOptions(baseOptions)
-                            .setRunningMode(RunningMode.IMAGE)
-                            .setNumFaces(1)
-                            .setOutputFaceBlendshapes(true)
-                            .build();
+            if (mLandmarker == null) {
+                mLandmarker= createLandmarker(context, Delegate.CPU);
+                Diagnostics.get().setMediaPipeGpu(false);
+            }
 
-            mLandmarker= FaceLandmarker.createFromOptions(context, options);
             if (BuildConfig.DEBUG) Log.d(EVIACAM.TAG, "MediaPipe face detector initialized");
             Diagnostics.get().setMediaPipeReady(true);
             EyeDroidLog.i(EyeDroidLog.TAG_MEDIAPIPE, "MediaPipe face landmarker initialized");
@@ -123,6 +138,32 @@ public class MediaPipePupilDetector implements PupilDetector {
             mLandmarker= null;
             return false;
         }
+    }
+
+    /**
+     * Build a face landmarker that runs on the requested delegate
+     *
+     * @param context application context
+     * @param delegate CPU or GPU
+     * @return the created landmarker
+     */
+    @NonNull
+    private static FaceLandmarker createLandmarker(@NonNull Context context,
+                                                   @NonNull Delegate delegate) {
+        BaseOptions baseOptions= BaseOptions.builder()
+                .setModelAssetPath(MODEL_ASSET)
+                .setDelegate(delegate)
+                .build();
+
+        FaceLandmarker.FaceLandmarkerOptions options=
+                FaceLandmarker.FaceLandmarkerOptions.builder()
+                        .setBaseOptions(baseOptions)
+                        .setRunningMode(RunningMode.IMAGE)
+                        .setNumFaces(1)
+                        .setOutputFaceBlendshapes(true)
+                        .build();
+
+        return FaceLandmarker.createFromOptions(context, options);
     }
 
     @Override
@@ -211,8 +252,14 @@ public class MediaPipePupilDetector implements PupilDetector {
         float yaw= headYaw(landmarks);
         float pitch= headPitch(landmarks);
 
+        /* where the face is in the frame, and how big it is (distance to the camera) */
+        final float faceX= (landmarks.get(FACE_LEFT).x() + landmarks.get(FACE_RIGHT).x()) * 0.5f;
+        final float faceY= (landmarks.get(FOREHEAD).y() + landmarks.get(CHIN).y()) * 0.5f;
+        final float faceSize= Math.abs(
+                landmarks.get(FACE_RIGHT).x() - landmarks.get(FACE_LEFT).x());
+
         return new PupilDetection(pupilX, pupilY, clampUnit(blinkLeft), clampUnit(blinkRight),
-                yaw, pitch, timestamp);
+                yaw, pitch, faceX, faceY, faceSize, timestamp);
     }
 
     /**
@@ -305,5 +352,6 @@ public class MediaPipePupilDetector implements PupilDetector {
         }
 
         Diagnostics.get().setMediaPipeReady(false);
+        Diagnostics.get().setMediaPipeGpu(false);
     }
 }

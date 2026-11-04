@@ -116,4 +116,33 @@
     <item>no</item>
 </string-array>
 
+
+<string-array name="capture_resolution_entries" translatable="false">
+    <item>160 x 120 (fastest)</item>
+    <item>320 x 240 (fast)</item>
+    <item>352 x 288 (default)</item>
+    <item>480 x 360 (detailed)</item>
+    <item>640 x 480 (slowest)</item>
+</string-array>
+<string-array name="capture_resolution_values" translatable="false">
+    <item>160x120</item>
+    <item>320x240</item>
+    <item>352x288</item>
+    <item>480x360</item>
+    <item>640x480</item>
+</string-array>
+
+<string-array name="capture_fps_entries" translatable="false">
+    <item>10 fps (slowest)</item>
+    <item>15 fps (default)</item>
+    <item>24 fps</item>
+    <item>30 fps (fastest)</item>
+</string-array>
+<string-array name="capture_fps_values" translatable="false">
+    <item>10</item>
+    <item>15</item>
+    <item>24</item>
+    <item>30</item>
+</string-array>
+
 </resources>

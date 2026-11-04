@@ -142,12 +142,23 @@ public final class Diagnostics {
         return mLastCameraFrame;
     }
 
+    /* whether the face landmarker is running on the GPU */
+    private boolean mMediaPipeGpu;
+
     public synchronized void setMediaPipeReady(boolean ready) {
         mMediaPipeReady = ready;
     }
 
     public synchronized boolean isMediaPipeReady() {
         return mMediaPipeReady;
+    }
+
+    public synchronized void setMediaPipeGpu(boolean gpu) {
+        mMediaPipeGpu = gpu;
+    }
+
+    public synchronized boolean isMediaPipeGpu() {
+        return mMediaPipeGpu;
     }
 
     public synchronized void noteMediaPipeDetection() {
@@ -445,6 +456,7 @@ public final class Diagnostics {
 
         sb.append("\nMEDIAPIPE\n");
         sb.append("  Ready: ").append(mMediaPipeReady ? "yes" : "no").append('\n');
+        sb.append("  Delegate: ").append(mMediaPipeGpu ? "GPU" : "CPU").append('\n');
         if (mLastMediaPipeDetection > 0) {
             sb.append("  Last detection: ").append(ago(now, mLastMediaPipeDetection)).append('\n');
         }

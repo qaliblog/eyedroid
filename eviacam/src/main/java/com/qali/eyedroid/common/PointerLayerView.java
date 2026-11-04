@@ -162,9 +162,15 @@ public class PointerLayerView extends View implements OnSharedPreferenceChangeLi
         mPaintBox.setAlpha(fillAlpha);
         canvas.drawCircle(mPointerLocation.x, mPointerLocation.y, radius, mPaintBox);
 
+        /*
+         * The border is black on purpose: the fill is a translucent white circle, so a
+         * white border disappeared over white pages. A dark border keeps the pointer
+         * visible on light backgrounds while the white fill keeps it visible on dark
+         * ones.
+         */
         mPaintBox.setStyle(Paint.Style.STROKE);
         mPaintBox.setStrokeWidth(mStrokeWidth);
-        mPaintBox.setColor(0xFFFFFF);
+        mPaintBox.setColor(0xFF000000);
         mPaintBox.setAlpha(strokeAlpha);
         canvas.drawCircle(mPointerLocation.x, mPointerLocation.y, radius, mPaintBox);
     }

@@ -24,11 +24,12 @@ import androidx.annotation.NonNull;
 import com.qali.eyedroid.vision.PupilDetection;
 
 /**
- * Turns a half blink (wink) of the configured eye into click and scroll actions.
+ * Turns a half blink (wink) of the configured eye into clicks and scroll drags.
  *
- * A quick wink generates a click. Keeping the eye half closed for a while generates
- * a long click when the eye is opened again. While the eye remains half closed,
- * looking up or down scrolls the content below the pointer.
+ * A quick wink generates a click. Keeping the eye half closed beyond the hold time
+ * turns the wink into a drag: the content keeps scrolling (looking up or down moves
+ * it) while the eye stays half closed, and the drag ends when the eye is opened
+ * again. A held wink never generates a long click.
  *
  * The difference between the two eyes is used so that a normal (bidirectional) blink
  * does not generate clicks.
@@ -40,7 +41,13 @@ public class BlinkClick implements SharedPreferences.OnSharedPreferenceChangeLis
      */
     public interface Listener {
         void onBlinkClick();
-        void onBlinkLongClick();
+
+        /** the wink has been held long enough to become a drag instead of a click */
+        void onBlinkHoldStart();
+
+        /** the drag ends because the eye has been opened again */
+        void onBlinkHoldEnd();
+
         void onBlinkScroll(boolean down);
 
         /**
@@ -52,7 +59,7 @@ public class BlinkClick implements SharedPreferences.OnSharedPreferenceChangeLis
     /* default wink score threshold, overridden from settings */
     private static final float DEFAULT_WINK_THRESHOLD = 0.45f;
 
-    /* default time after which the wink becomes a long click (milliseconds) */
+    /* default time after which the wink becomes a drag (milliseconds) */
     private static final long DEFAULT_HOLD_TIME_MS = 600;
 
     /* gaze displacement (normalized) that starts scrolling while winking */
@@ -75,8 +82,11 @@ public class BlinkClick implements SharedPreferences.OnSharedPreferenceChangeLis
     private float mWinkEnd = 0.30f;
     private float mWinkEndDifference = 0.12f;
 
-    // time after which the wink becomes a long click
+    // time after which the wink becomes a drag instead of a click
     private long mHoldTime = DEFAULT_HOLD_TIME_MS;
+
+    // the wink has been held long enough to be a drag (scrolling) right now
+    private boolean mHolding = false;
 
     // state of the wink
     private boolean mWinking = false;
@@ -133,6 +143,10 @@ public class BlinkClick implements SharedPreferences.OnSharedPreferenceChangeLis
      * Reset the internal state
      */
     public void reset() {
+        if (mHolding) {
+            mHolding = false;
+            mListener.onBlinkHoldEnd();
+        }
         setWinking(false);
         mLastScrollTime = 0;
     }
@@ -173,21 +187,47 @@ public class BlinkClick implements SharedPreferences.OnSharedPreferenceChangeLis
                 mWinkStartTime = now;
                 mLastScrollTime = 0;
                 mGazeBaseline = detection.y;
+                mHolding = false;
             }
             return;
         }
 
         if (released) {
-            final long held = now - mWinkStartTime;
+            final boolean wasHolding = mHolding;
+            mHolding = false;
             setWinking(false);
             mLastScrollTime = 0;
 
-            if (!clickable) return;
+            /*
+             * A held wink is a drag: it ends here, when the eye opens again, and it
+             * never becomes a click nor a long click.
+             */
+            if (wasHolding) {
+                mListener.onBlinkHoldEnd();
+                return;
+            }
 
-            if (held >= mHoldTime) mListener.onBlinkLongClick();
-            else mListener.onBlinkClick();
+            if (clickable) mListener.onBlinkClick();
             return;
         }
+
+        /*
+         * Still winking: once the hold time elapses the wink becomes a drag that keeps
+         * scrolling until the eye is opened again.
+         */
+        if (!mHolding && (now - mWinkStartTime) >= mHoldTime) {
+            mHolding = true;
+            mLastScrollTime = 0;
+            // the drag starts here: this gaze position is the scroll reference
+            mGazeBaseline = detection.y;
+            mListener.onBlinkHoldStart();
+        }
+
+        /*
+         * A quick wink must stay a click, so scrolling only starts once the wink has
+         * been held long enough to be a drag.
+         */
+        if (!mHolding) return;
 
         /* Still winking: use the gaze to scroll */
         final float dy = detection.y - mGazeBaseline;

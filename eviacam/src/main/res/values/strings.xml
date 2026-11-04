@@ -62,14 +62,14 @@
     <string name="settings_pupil_vertical_gain_summary">Vertical effect of the pupil movement (percent)</string>
     <string name="settings_sound_on_click">Play sound on click</string>
     <string name="settings_blink_click">Click with a right eye half blink</string>
-    <string name="settings_blink_click_summary">A wink makes a click, holding it makes a long click and looking up or down while holding it scrolls</string>
+    <string name="settings_blink_click_summary">A quick wink clicks. Keeping the half blink held drags and scrolls until the eye opens again, look up or down to move the content</string>
     <string name="settings_blink_eye">Eye used for the half blink</string>
     <string name="settings_blink_eye_right">Right eye</string>
     <string name="settings_blink_eye_left">Left eye</string>
     <string name="settings_blink_threshold">Half blink threshold</string>
     <string name="settings_blink_threshold_summary">Eyelid closure (percent) needed to detect the half blink</string>
     <string name="settings_blink_hold_time">Half blink hold time</string>
-    <string name="settings_blink_hold_time_summary">Time (milliseconds) to hold the half blink before it becomes a long click</string>
+    <string name="settings_blink_hold_time_summary">Time (milliseconds) the half blink must be held before it drags instead of clicking</string>
     <string name="settings_consecutive_clicks">Consecutive clicks</string>
     <string name="settings_time_without_detection">Disable EVA when face not detected</string>
     <string name="settings_interface_settings">Interface settings</string>
@@ -94,6 +94,20 @@
     <string name="settings_use_camera2_api_yes">Yes (experimental)</string>
     <string name="settings_use_camera2_api_no">No</string>
     <string name="settings_lock_speed_settings">Lock speed settings</string>
+    <string name="settings_face_horizontal_gain">Face position horizontal strength</string>
+    <string name="settings_face_horizontal_gain_summary">Horizontal effect of the position of the face in the camera frame (percent)</string>
+    <string name="settings_face_vertical_gain">Face position vertical strength</string>
+    <string name="settings_face_vertical_gain_summary">Vertical effect of the position of the face in the camera frame (percent)</string>
+    <string name="settings_face_size_gain">Head size strength</string>
+    <string name="settings_face_size_gain_summary">Effect of moving the head closer or further from the camera (percent)</string>
+    <string name="settings_mediapipe_gpu">GPU acceleration</string>
+    <string name="settings_mediapipe_gpu_summary">Run the face detector on the GPU. Faster on most devices, applies after the engine restarts</string>
+    <string name="settings_capture_resolution">Frame resolution</string>
+    <string name="settings_capture_resolution_summary">Lower resolutions are faster and use less battery</string>
+    <string name="settings_capture_fps">Camera frame rate</string>
+    <string name="settings_capture_fps_summary">Maximum frames per second sent to the face detector</string>
+    <string name="capture_resolution_default" translatable="false">352x288</string>
+    <string name="capture_fps_default" translatable="false">15</string>
     <!-- Settings screen end -->
 
     <!-- actions start -->

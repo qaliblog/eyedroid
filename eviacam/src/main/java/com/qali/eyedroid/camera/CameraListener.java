@@ -20,6 +20,7 @@
 package com.qali.eyedroid.camera;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.ImageFormat;
 import android.hardware.Camera;
@@ -33,6 +34,7 @@ import android.view.WindowManager;
 
 import com.qali.eyedroid.R;
 import com.qali.eyedroid.common.EVIACAM;
+import com.qali.eyedroid.common.Preferences;
 import com.qali.eyedroid.debug.Diagnostics;
 import com.qali.eyedroid.debug.EyeDroidLog;
 import com.qali.eyedroid.util.FlipDirection;
@@ -75,6 +77,24 @@ class CameraListener implements Camera.PreviewCallback, SurfaceHolder.Callback {
     // desired capture size
     private final int mDesiredWidth;
     private final int mDesiredHeight;
+
+    // preferences where the capture size and the frame rate are stored
+    private final SharedPreferences mPreferences;
+
+    /*
+     * Changing the capture size or the frame rate requires reopening the camera. The
+     * work is posted to the view thread, where the preview lives.
+     */
+    private final SharedPreferences.OnSharedPreferenceChangeListener mSettingsListener=
+            new SharedPreferences.OnSharedPreferenceChangeListener() {
+                @Override
+                public void onSharedPreferenceChanged(SharedPreferences sp, String key) {
+                    if (Preferences.KEY_CAPTURE_FPS.equals(key) ||
+                            Preferences.KEY_CAPTURE_RESOLUTION.equals(key)) {
+                        restartPreview();
+                    }
+                }
+            };
 
     // camera id and capture parameters
     private final int mCameraId;
@@ -152,6 +172,12 @@ class CameraListener implements Camera.PreviewCallback, SurfaceHolder.Callback {
 
         mCameraView= new SurfaceView(c);
         mCameraView.getHolder().addCallback(this);
+
+        final Preferences preferences= Preferences.get();
+        mPreferences= (preferences != null) ? preferences.getSharedPreferences() : null;
+        if (mPreferences != null) {
+            mPreferences.registerOnSharedPreferenceChangeListener(mSettingsListener);
+        }
     }
 
     SurfaceView getCameraSurface() {
@@ -183,6 +209,10 @@ class CameraListener implements Camera.PreviewCallback, SurfaceHolder.Callback {
      */
     void cleanup() {
         stopCamera();
+
+        if (mPreferences != null) {
+            mPreferences.unregisterOnSharedPreferenceChangeListener(mSettingsListener);
+        }
 
         mWorker.shutdownNow();
 
@@ -293,11 +323,21 @@ class CameraListener implements Camera.PreviewCallback, SurfaceHolder.Callback {
             camera= Camera.open(mCameraId);
             camera.setDisplayOrientation(mDisplayOrientation);
 
-            Camera.Parameters params= camera.getParameters();
-            android.hardware.Camera.Size size= choosePreviewSize(params.getSupportedPreviewSizes());
+            final Camera.Parameters params= camera.getParameters();
+
+            /*
+             * The capture size and the frame rate are read on every open, so changing
+             * them in the settings takes effect when the camera is reopened.
+             */
+            final int desiredWidth= getDesiredCaptureWidth();
+            final int desiredHeight= getDesiredCaptureHeight();
+            final int targetFps= getTargetCaptureFps();
+
+            android.hardware.Camera.Size size= choosePreviewSize(
+                    params.getSupportedPreviewSizes(), desiredWidth, desiredHeight);
             params.setPreviewSize(size.width, size.height);
             params.setPreviewFormat(ImageFormat.NV21);
-            chooseFpsRange(params);
+            chooseFpsRange(params, targetFps);
             camera.setParameters(params);
 
             mPreviewSize= size;
@@ -325,7 +365,7 @@ class CameraListener implements Camera.PreviewCallback, SurfaceHolder.Callback {
             Diagnostics.get().setCameraRunning(true);
             Diagnostics.get().setCameraInitialized(true);
             EyeDroidLog.i(EyeDroidLog.TAG_CAMERA, "Camera preview started ("
-                    + size.width + "x" + size.height + ")");
+                    + size.width + "x" + size.height + ", target " + targetFps + " fps)");
 
             if (!mStartedNotified) {
                 mStartedNotified= true;
@@ -386,18 +426,61 @@ class CameraListener implements Camera.PreviewCallback, SurfaceHolder.Callback {
     }
 
     /**
-     * Select the supported preview size closest to the desired capture size,
-     * ignoring the small sizes that do not provide enough detail for the face mesh.
+     * Desired capture width from the settings, falling back to the value given when
+     * the camera was created
      */
-    private android.hardware.Camera.Size choosePreviewSize(List<android.hardware.Camera.Size> sizes) {
+    private int getDesiredCaptureWidth() {
+        final Preferences preferences= Preferences.get();
+        return (preferences != null) ? preferences.getCaptureWidth() : mDesiredWidth;
+    }
+
+    /**
+     * Desired capture height from the settings, falling back to the value given when
+     * the camera was created
+     */
+    private int getDesiredCaptureHeight() {
+        final Preferences preferences= Preferences.get();
+        return (preferences != null) ? preferences.getCaptureHeight() : mDesiredHeight;
+    }
+
+    /**
+     * Desired frame rate from the settings, falling back to 15 fps
+     */
+    private int getTargetCaptureFps() {
+        final Preferences preferences= Preferences.get();
+        return (preferences != null) ? preferences.getCaptureFps() : 15;
+    }
+
+    /**
+     * Reopen the camera so that a new capture size or frame rate takes effect
+     */
+    private void restartPreview() {
+        mCameraView.post(new Runnable() {
+            @Override
+            public void run() {
+                if (!mWantsPreview || !mPreviewRunning) return;
+                EyeDroidLog.i(EyeDroidLog.TAG_CAMERA,
+                        "Capture settings changed, reopening the camera");
+                releaseCamera();
+                openCamera();
+            }
+        });
+    }
+
+    /**
+     * Select the supported preview size closest to the desired capture size,
+     * ignoring the tiny sizes that do not provide enough detail for the face mesh.
+     */
+    private android.hardware.Camera.Size choosePreviewSize(
+            List<android.hardware.Camera.Size> sizes, int desiredWidth, int desiredHeight) {
         android.hardware.Camera.Size best= null;
         long bestScore= Long.MAX_VALUE;
 
         for (android.hardware.Camera.Size size : sizes) {
-            if (size.width < 320 || size.height < 240) continue;
+            if (size.width < 160 || size.height < 120) continue;
 
-            long score= Math.abs(size.width - mDesiredWidth) +
-                    Math.abs(size.height - mDesiredHeight);
+            long score= Math.abs(size.width - desiredWidth) +
+                    Math.abs(size.height - desiredHeight);
 
             if (score < bestScore) {
                 bestScore= score;
@@ -411,20 +494,30 @@ class CameraListener implements Camera.PreviewCallback, SurfaceHolder.Callback {
     }
 
     /**
-     * Pick a preview rate around 15 fps: enough for smooth control without making
-     * the face mesh inference the bottleneck.
+     * Pick the preview rate closest to the configured one. A lower rate leaves more
+     * CPU for the face detector, a higher one makes the pointer more responsive.
      */
-    private static void chooseFpsRange(Camera.Parameters params) {
+    private static void chooseFpsRange(Camera.Parameters params, int targetFps) {
         final List<int[]> ranges= params.getSupportedPreviewFpsRange();
         if (ranges == null || ranges.isEmpty()) return;
 
+        final int target= targetFps * 1000;
         int[] best= null;
-        for (int[] range : ranges) {
-            if (range[1] < 15000) continue;
-            if (best == null || range[1] < best[1]) best= range;
-        }
 
-        if (best == null) best= ranges.get(0);
+        for (int[] range : ranges) {
+            if (best == null) {
+                best= range;
+                continue;
+            }
+
+            final int bestDistance= Math.abs(best[1] - target);
+            final int distance= Math.abs(range[1] - target);
+
+            if (distance < bestDistance ||
+                    (distance == bestDistance && range[1] < best[1])) {
+                best= range;
+            }
+        }
 
         try {
             params.setPreviewFpsRange(best[0], best[1]);
@@ -436,11 +529,20 @@ class CameraListener implements Camera.PreviewCallback, SurfaceHolder.Callback {
 
     /**
      * Rotation (clockwise) that makes the preview upright on screen
+     *
+     * Uses the formulas from the Camera.setDisplayOrientation documentation. The
+     * previous version had them swapped, which rotated the preview 180 degrees on
+     * devices whose front camera is mounted at 90 or 270 (the small preview appeared
+     * upside down). This only affects the preview surface, not the frames handed to
+     * the face detector.
      */
     private static int computeDisplayOrientation(int cameraOrientation, boolean front,
                                                  int displayRotationDegrees) {
-        if (front) return (cameraOrientation - displayRotationDegrees + 360) % 360;
-        return (cameraOrientation + displayRotationDegrees) % 360;
+        if (front) {
+            final int result= (cameraOrientation + displayRotationDegrees) % 360;
+            return (360 - result) % 360;
+        }
+        return (cameraOrientation - displayRotationDegrees + 360) % 360;
     }
 
     private static int getDisplayRotationDegrees(@NonNull Context c) {

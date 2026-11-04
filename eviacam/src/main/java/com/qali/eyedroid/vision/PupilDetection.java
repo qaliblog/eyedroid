@@ -42,17 +42,31 @@ public class PupilDetection {
     public final float headYaw;
     public final float headPitch;
 
+    /*
+     * Center of the face in the frame, normalized to the frame size (0 to 1), and the
+     * width of the face normalized by the frame width. The position provides the head
+     * translation (moving the head left/right/up/down) and the size provides the
+     * distance between the head and the camera.
+     */
+    public final float faceX;
+    public final float faceY;
+    public final float faceSize;
+
     /* time stamp of the detection in milliseconds */
     public final long timestamp;
 
     public PupilDetection(float x, float y, float blinkLeft, float blinkRight,
-                          float headYaw, float headPitch, long timestamp) {
+                          float headYaw, float headPitch,
+                          float faceX, float faceY, float faceSize, long timestamp) {
         this.x= x;
         this.y= y;
         this.blinkLeft= blinkLeft;
         this.blinkRight= blinkRight;
         this.headYaw= headYaw;
         this.headPitch= headPitch;
+        this.faceX= faceX;
+        this.faceY= faceY;
+        this.faceSize= faceSize;
         this.timestamp= timestamp;
     }
 }

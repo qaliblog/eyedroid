@@ -116,6 +116,36 @@
             app:minValue="@integer/pupil_gain_min"
             app:maxValue="@integer/pupil_gain_max"
         />
+
+       <com.qali.eyedroid.util.NumberEditPreference
+            android:key="face_horizontal_gain"
+            android:title="@string/settings_face_horizontal_gain"
+            android:dialogMessage="@string/settings_face_horizontal_gain_summary"
+            android:summary="@string/settings_face_horizontal_gain_summary"
+            android:defaultValue="@integer/face_gain_default"
+            app:minValue="@integer/face_gain_min"
+            app:maxValue="@integer/face_gain_max"
+        />
+
+       <com.qali.eyedroid.util.NumberEditPreference
+            android:key="face_vertical_gain"
+            android:title="@string/settings_face_vertical_gain"
+            android:dialogMessage="@string/settings_face_vertical_gain_summary"
+            android:summary="@string/settings_face_vertical_gain_summary"
+            android:defaultValue="@integer/face_gain_default"
+            app:minValue="@integer/face_gain_min"
+            app:maxValue="@integer/face_gain_max"
+        />
+
+       <com.qali.eyedroid.util.NumberEditPreference
+            android:key="face_size_gain"
+            android:title="@string/settings_face_size_gain"
+            android:dialogMessage="@string/settings_face_size_gain_summary"
+            android:summary="@string/settings_face_size_gain_summary"
+            android:defaultValue="@integer/face_gain_default"
+            app:minValue="@integer/face_gain_min"
+            app:maxValue="@integer/face_gain_max"
+        />
        
     </PreferenceCategory>
     
@@ -223,6 +253,31 @@
             android:entries="@array/time_without_detection_entries"
             android:entryValues="@array/time_without_detection_values"
             android:defaultValue="@string/time_without_detection_default"
+        />
+
+        <CheckBoxPreference
+            android:key="mediapipe_gpu"
+            android:title="@string/settings_mediapipe_gpu"
+            android:summary="@string/settings_mediapipe_gpu_summary"
+            android:defaultValue="@bool/mediapipe_gpu_default"
+        />
+
+        <ListPreference
+            android:key="capture_resolution"
+            android:title="@string/settings_capture_resolution"
+            android:summary="%s"
+            android:entries="@array/capture_resolution_entries"
+            android:entryValues="@array/capture_resolution_values"
+            android:defaultValue="@string/capture_resolution_default"
+        />
+
+        <ListPreference
+            android:key="capture_fps"
+            android:title="@string/settings_capture_fps"
+            android:summary="%s"
+            android:entries="@array/capture_fps_entries"
+            android:entryValues="@array/capture_fps_values"
+            android:defaultValue="@string/capture_fps_default"
         />
 
     </PreferenceCategory>

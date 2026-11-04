@@ -66,6 +66,12 @@ public class Preferences {
     private static final String KEY_SHOW_LAUNCHER_HELP= "show_launcher_help";
     public static final String KEY_USE_CAMERA2_API= "use_camera2_api";
     public static final String KEY_LEARNING_ENABLED= "learning_enabled";
+    public static final String KEY_FACE_HORIZONTAL_GAIN= "face_horizontal_gain";
+    public static final String KEY_FACE_VERTICAL_GAIN= "face_vertical_gain";
+    public static final String KEY_FACE_SIZE_GAIN= "face_size_gain";
+    public static final String KEY_MEDIAPIPE_GPU= "mediapipe_gpu";
+    public static final String KEY_CAPTURE_RESOLUTION= "capture_resolution";
+    public static final String KEY_CAPTURE_FPS= "capture_fps";
     private static final String KEY_ENGINE_WAS_RUNNING= "engine_was_running";
     private static final String KEY_SHOW_CONTEXT_MENU_HELP = "display_context_menu_help";
 
@@ -107,6 +113,16 @@ public class Preferences {
     private final int PUPIL_GAIN_DEFAULT;
     private final int PUPIL_GAIN_MIN;
     private final int PUPIL_GAIN_MAX;
+    private final int FACE_GAIN_DEFAULT;
+    private final int FACE_GAIN_MIN;
+    private final int FACE_GAIN_MAX;
+    private final boolean MEDIAPIPE_GPU_DEFAULT;
+    private final int CAPTURE_FPS_DEFAULT;
+    private final int CAPTURE_FPS_MIN;
+    private final int CAPTURE_FPS_MAX;
+    private final int CAPTURE_WIDTH_DEFAULT;
+    private final int CAPTURE_HEIGHT_DEFAULT;
+    private final String CAPTURE_RESOLUTION_DEFAULT;
     private final boolean SOUND_ON_CLICK_DEFAULT;
     private final boolean BLINK_CLICK_DEFAULT;
     private final int BLINK_THRESHOLD_DEFAULT;
@@ -160,6 +176,16 @@ public class Preferences {
         PUPIL_GAIN_DEFAULT= r.getInteger(R.integer.pupil_gain_default);
         PUPIL_GAIN_MIN= r.getInteger(R.integer.pupil_gain_min);
         PUPIL_GAIN_MAX= r.getInteger(R.integer.pupil_gain_max);
+        FACE_GAIN_DEFAULT= r.getInteger(R.integer.face_gain_default);
+        FACE_GAIN_MIN= r.getInteger(R.integer.face_gain_min);
+        FACE_GAIN_MAX= r.getInteger(R.integer.face_gain_max);
+        MEDIAPIPE_GPU_DEFAULT= r.getBoolean(R.bool.mediapipe_gpu_default);
+        CAPTURE_FPS_DEFAULT= r.getInteger(R.integer.capture_fps_default);
+        CAPTURE_FPS_MIN= r.getInteger(R.integer.capture_fps_min);
+        CAPTURE_FPS_MAX= r.getInteger(R.integer.capture_fps_max);
+        CAPTURE_WIDTH_DEFAULT= r.getInteger(R.integer.capture_width_default);
+        CAPTURE_HEIGHT_DEFAULT= r.getInteger(R.integer.capture_height_default);
+        CAPTURE_RESOLUTION_DEFAULT= r.getString(R.string.capture_resolution_default);
         SOUND_ON_CLICK_DEFAULT= r.getBoolean(R.bool.sound_on_click_default);
         BLINK_CLICK_DEFAULT= r.getBoolean(R.bool.blink_click_default);
         BLINK_THRESHOLD_DEFAULT= r.getInteger(R.integer.blink_threshold_default);
@@ -372,6 +398,99 @@ public class Preferences {
     }
 
     /**
+     * Get the horizontal gain (percent) of the face position in the camera frame
+     */
+    public int getFaceHorizontalGain() {
+        int v= mSharedPreferences.getInt(
+                Preferences.KEY_FACE_HORIZONTAL_GAIN, FACE_GAIN_DEFAULT);
+        return constraint(v, FACE_GAIN_MIN, FACE_GAIN_MAX);
+    }
+
+    /**
+     * Get the vertical gain (percent) of the face position in the camera frame
+     */
+    public int getFaceVerticalGain() {
+        int v= mSharedPreferences.getInt(
+                Preferences.KEY_FACE_VERTICAL_GAIN, FACE_GAIN_DEFAULT);
+        return constraint(v, FACE_GAIN_MIN, FACE_GAIN_MAX);
+    }
+
+    /**
+     * Get the gain (percent) of the head size, that is, of the distance between the
+     * head and the camera
+     */
+    public int getFaceSizeGain() {
+        int v= mSharedPreferences.getInt(Preferences.KEY_FACE_SIZE_GAIN, FACE_GAIN_DEFAULT);
+        return constraint(v, FACE_GAIN_MIN, FACE_GAIN_MAX);
+    }
+
+    /**
+     * Get whether the face landmarker should run on the GPU
+     */
+    public boolean isMediaPipeGpuEnabled() {
+        return mSharedPreferences.getBoolean(
+                Preferences.KEY_MEDIAPIPE_GPU, MEDIAPIPE_GPU_DEFAULT);
+    }
+
+    /**
+     * Get the capture frame rate (frames per second) sent to the face detector
+     */
+    public int getCaptureFps() {
+        /*
+         * The value is stored by a ListPreference, that is, as a string. Read it in a
+         * type safe way so that a value written by another widget (or by hand) cannot
+         * make this throw.
+         */
+        final Object raw= mSharedPreferences.getAll().get(Preferences.KEY_CAPTURE_FPS);
+        int v= CAPTURE_FPS_DEFAULT;
+
+        if (raw instanceof Integer) {
+            v= (Integer) raw;
+        }
+        else if (raw instanceof String) {
+            try {
+                v= Integer.parseInt(((String) raw).trim());
+            }
+            catch (NumberFormatException ignored) { /* keep the default */ }
+        }
+
+        return constraint(v, CAPTURE_FPS_MIN, CAPTURE_FPS_MAX);
+    }
+
+    /**
+     * Get the desired capture width, parsed from the "WIDTHxHEIGHT" setting
+     */
+    public int getCaptureWidth() {
+        return parseResolutionComponent(true);
+    }
+
+    /**
+     * Get the desired capture height, parsed from the "WIDTHxHEIGHT" setting
+     */
+    public int getCaptureHeight() {
+        return parseResolutionComponent(false);
+    }
+
+    private int parseResolutionComponent(boolean width) {
+        final int fallback= width ? CAPTURE_WIDTH_DEFAULT : CAPTURE_HEIGHT_DEFAULT;
+
+        String value= mSharedPreferences.getString(
+                Preferences.KEY_CAPTURE_RESOLUTION, CAPTURE_RESOLUTION_DEFAULT);
+        if (value == null) return fallback;
+
+        final int pos= value.indexOf('x');
+        if (pos <= 0) return fallback;
+
+        try {
+            if (width) return Integer.parseInt(value.substring(0, pos).trim());
+            return Integer.parseInt(value.substring(pos + 1).trim());
+        }
+        catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    /**
      * Get whether clicks are generated through a half blink of the right eye
      */
     public boolean getBlinkClick() {
@@ -400,7 +519,8 @@ public class Preferences {
     }
 
     /**
-     * Get the time (milliseconds) after which a held half blink is a long click
+     * Get the time (milliseconds) after which a held half blink becomes a drag
+     * (scrolling) instead of a click
      */
     public int getBlinkHoldTime() {
         int v= mSharedPreferences.getInt(

@@ -37,15 +37,28 @@
     
     <integer name="motion_threshold_default">1</integer>
     <integer name="motion_threshold_min">0</integer>
-    <integer name="motion_threshold_max">5</integer>
+    <integer name="motion_threshold_max">150</integer>
     
     <integer name="head_motion_strength_default">10</integer>
     <integer name="head_motion_strength_min">0</integer>
-    <integer name="head_motion_strength_max">100</integer>
+    <integer name="head_motion_strength_max">3000</integer>
 
     <integer name="pupil_gain_default">100</integer>
     <integer name="pupil_gain_min">0</integer>
-    <integer name="pupil_gain_max">200</integer>
+    <integer name="pupil_gain_max">6000</integer>
+
+    <!-- face position and head size effects, deliberately with a high range -->
+    <integer name="face_gain_default">0</integer>
+    <integer name="face_gain_min">0</integer>
+    <integer name="face_gain_max">6000</integer>
+
+    <!-- camera capture -->
+    <bool name="mediapipe_gpu_default">false</bool>
+    <integer name="capture_fps_default">15</integer>
+    <integer name="capture_fps_min">5</integer>
+    <integer name="capture_fps_max">60</integer>
+    <integer name="capture_width_default">352</integer>
+    <integer name="capture_height_default">288</integer>
 
     <integer name="dwell_time_default">10</integer>
     <integer name="dwell_time_min">1</integer>
@@ -63,7 +76,7 @@
     <integer name="blink_threshold_max">90</integer>
 
     <integer name="blink_hold_time_default">600</integer>
-    <integer name="blink_hold_time_min">200</integer>
+    <integer name="blink_hold_time_min">50</integer>
     <integer name="blink_hold_time_max">3000</integer>
 
     <string name="blink_eye_default" translatable="false">right</string>
