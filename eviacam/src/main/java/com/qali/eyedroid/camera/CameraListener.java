@@ -33,6 +33,8 @@ import android.view.WindowManager;
 
 import com.qali.eyedroid.R;
 import com.qali.eyedroid.common.EVIACAM;
+import com.qali.eyedroid.debug.Diagnostics;
+import com.qali.eyedroid.debug.EyeDroidLog;
 import com.qali.eyedroid.util.FlipDirection;
 
 import java.io.IOException;
@@ -231,6 +233,8 @@ class CameraListener implements Camera.PreviewCallback, SurfaceHolder.Callback {
             return;
         }
 
+        Diagnostics.get().noteCameraFrame();
+
         final int width= mPreviewSize.width;
         final int height= mPreviewSize.height;
         final int pixels= width * height;
@@ -318,6 +322,10 @@ class CameraListener implements Camera.PreviewCallback, SurfaceHolder.Callback {
             camera.startPreview();
 
             mPreviewRunning= true;
+            Diagnostics.get().setCameraRunning(true);
+            Diagnostics.get().setCameraInitialized(true);
+            EyeDroidLog.i(EyeDroidLog.TAG_CAMERA, "Camera preview started ("
+                    + size.width + "x" + size.height + ")");
 
             if (!mStartedNotified) {
                 mStartedNotified= true;
@@ -325,7 +333,9 @@ class CameraListener implements Camera.PreviewCallback, SurfaceHolder.Callback {
             }
         }
         catch (IOException | RuntimeException e) {
-            Log.e(EVIACAM.TAG, "Cannot start camera", e);
+            Diagnostics.get().setCameraRunning(false);
+            Diagnostics.get().setLastCameraFailure("cannot open the camera: " + e);
+            EyeDroidLog.e(EyeDroidLog.TAG_CAMERA, "Cannot start camera", e);
             if (camera != null) {
                 try {
                     camera.release();
@@ -345,8 +355,14 @@ class CameraListener implements Camera.PreviewCallback, SurfaceHolder.Callback {
      */
     private void releaseCamera() {
         final Camera camera= mCamera;
+        final boolean wasRunning= mPreviewRunning;
         mCamera= null;
         mPreviewRunning= false;
+
+        if (wasRunning) {
+            Diagnostics.get().setCameraRunning(false);
+            EyeDroidLog.i(EyeDroidLog.TAG_CAMERA, "Camera preview stopped");
+        }
 
         if (camera != null) {
             try {

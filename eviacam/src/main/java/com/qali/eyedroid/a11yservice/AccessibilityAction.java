@@ -372,6 +372,18 @@ import com.qali.eyedroid.util.AccessibilityNodeDebug;
                 
                 Rect bounds = new Rect();
                 for (AccessibilityWindowInfo awi : l) {
+                    /*
+                      EyeDroid draws the pointer and the docking panel using an
+                      accessibility overlay window. That window is full screen and comes
+                      first in z-order, so it would shadow the application below here and
+                      every click would be resolved against our own overlay. It only
+                      draws, it never contains application content, so skip it and keep
+                      looking for the window the user is actually interacting with.
+                     */
+                    if (awi.getType() == AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY) {
+                        continue;
+                    }
+
                     awi.getBoundsInScreen(bounds);
                     if (bounds.contains(pInt.x, pInt.y)) {
                         AccessibilityNodeInfo rootCandidate= awi.getRoot();

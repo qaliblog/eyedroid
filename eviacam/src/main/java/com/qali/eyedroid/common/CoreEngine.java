@@ -27,6 +27,8 @@ import com.qali.eyedroid.camera.FrameProcessor;
 import com.qali.eyedroid.vision.MediaPipePupilDetector;
 import com.qali.eyedroid.vision.PupilDetection;
 import com.qali.eyedroid.vision.PupilDetector;
+import com.qali.eyedroid.debug.Diagnostics;
+import com.qali.eyedroid.debug.EyeDroidLog;
 
 import android.app.AlertDialog;
 import android.app.Service;
@@ -253,12 +255,19 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
      */
     // TODO: remove return value
     private boolean init2() {
+        EyeDroidLog.i(EyeDroidLog.TAG_ENGINE, "Engine initialization started");
+
         mPowerManagement = new PowerManagement(mService, this);
         /*
          * Create UI stuff: root overlay and camera view
          */
         mOverlayView= new OverlayView(mService);
-        mOverlayView.setVisibility(View.INVISIBLE);
+        mOverlayView.setOverlayVisible(false);
+        if (!mOverlayView.isAttached()) {
+            /* the engine can still run, but the pointer cannot be shown */
+            EyeDroidLog.e(EyeDroidLog.TAG_OVERLAY,
+                    "Overlay could not be attached: " + mOverlayView.getAttachError());
+        }
         
         mCameraLayerView= new CameraLayerView(mService);
         mOverlayView.addFullScreenLayer(mCameraLayerView);
@@ -268,8 +277,13 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
          */
         try {
             mCamera = new Camera(mService, this);
+            Diagnostics.get().setCameraInitialized(true);
+            EyeDroidLog.i(EyeDroidLog.TAG_CAMERA, "Camera initialized");
         }
         catch(CameraException e) {
+            Diagnostics.get().setCameraInitialized(false);
+            Diagnostics.get().setLastCameraFailure(e.getLocalizedMessage());
+            Diagnostics.get().setLastInitFailure("camera: " + e.getLocalizedMessage());
             manageCameraError(e);
             return false;  // abort initialization
         }
@@ -290,13 +304,19 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
         mPupilDetector= new MediaPipePupilDetector();
         boolean pupilDetectorReady= mPupilDetector.initialize(mService);
         if (!pupilDetectorReady) {
-            Log.w(EVIACAM.TAG, "Pupil detector not available, keeping face motion only");
+            EyeDroidLog.w(EyeDroidLog.TAG_MEDIAPIPE,
+                    "Pupil detector not available, keeping face motion only");
         }
         mPupilMotionControl.setPupilAvailable(pupilDetectorReady);
 
         mCurrentState= STATE_STOPPED;
 
         mSaveState= mCurrentState;
+
+        Diagnostics.get().setEngineInitialized(true);
+        Diagnostics.get().setEngineState(mCurrentState);
+        EyeDroidLog.i(EyeDroidLog.TAG_ENGINE, "Engine initialized ("
+                + (pupilDetectorReady ? "MediaPipe ready" : "no face detector") + ")");
 
         /* Notify successful initialization */
         mHandler.post(new Runnable() {
@@ -353,6 +373,8 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
 
     private void doStart() {
         if (BuildConfig.DEBUG) Log.d(EVIACAM.TAG, "CoreEngine.doStart");
+        EyeDroidLog.i(EyeDroidLog.TAG_ENGINE, "Starting engine (state "
+                + Diagnostics.engineStateName(mCurrentState) + ")");
         // If not initialized just fail
         if (mCurrentState == STATE_DISABLED) {
             Log.e(EVIACAM.TAG, "Attempt to start DISABLED engine");
@@ -385,7 +407,7 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
 
         /* show GUI elements */
         mOverlayView.requestLayout();
-        mOverlayView.setVisibility(View.VISIBLE);
+        mOverlayView.setOverlayVisible(true);
 
         mCameraLayerView.enableDetectionFeedback();
         
@@ -403,6 +425,8 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
         if (mWaitState && mCurrentState == STATE_STOPPED) {
             mWaitState= false;
             mCurrentState = STATE_RUNNING;
+            Diagnostics.get().setEngineState(mCurrentState);
+            EyeDroidLog.i(EyeDroidLog.TAG_ENGINE, "Engine running, camera started");
             dispatchRequests();
         }
         else {
@@ -439,6 +463,8 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
         onPause();
 
         mCurrentState= STATE_PAUSED;
+        Diagnostics.get().setEngineState(mCurrentState);
+        EyeDroidLog.i(EyeDroidLog.TAG_ENGINE, "Engine paused");
     }
 
     @Override
@@ -476,6 +502,8 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
         onStandby();
 
         mCurrentState= STATE_STANDBY;
+        Diagnostics.get().setEngineState(mCurrentState);
+        EyeDroidLog.i(EyeDroidLog.TAG_ENGINE, "Engine in standby, no face detected");
     }
 
     @Override
@@ -508,6 +536,8 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
         mOverlayView.requestLayout();
 
         mCurrentState= STATE_RUNNING;
+        Diagnostics.get().setEngineState(mCurrentState);
+        EyeDroidLog.i(EyeDroidLog.TAG_ENGINE, "Engine resumed");
     }    
 
     @Override
@@ -527,7 +557,7 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
         if (mCurrentState == STATE_DISABLED || mCurrentState == STATE_STOPPED) return;
 
         mCamera.stopCamera();
-        mOverlayView.setVisibility(View.INVISIBLE);
+        mOverlayView.setOverlayVisible(false);
 
         mPowerManagement.unlockFullPower();
         mPowerManagement.setSleepEnabled(false);
@@ -536,6 +566,8 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
 
         // TODO: consider adding STATE_WAIT_STOP
         mCurrentState= STATE_STOPPED;
+        Diagnostics.get().setEngineState(mCurrentState);
+        EyeDroidLog.i(EyeDroidLog.TAG_ENGINE, "Engine stopped");
     }
 
     @Override
@@ -558,8 +590,12 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
         onCleanup();
 
         /* the camera must stop first: its analysis thread is the only user of the detector */
-        mCamera.cleanup();
-        mCamera = null;
+        if (mCamera != null) {
+            mCamera.cleanup();
+            mCamera = null;
+        }
+        Diagnostics.get().setCameraRunning(false);
+        Diagnostics.get().setCameraInitialized(false);
 
         if (mPupilDetector != null) {
             mPupilDetector.cleanup();
@@ -569,22 +605,31 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
         if (mPupilMotionControl != null) {
             mPupilMotionControl.cleanup();
             mPupilMotionControl= null;
+        }        if (mOrientationManager != null) {
+            mOrientationManager.cleanup();
+            mOrientationManager = null;
         }
-
-        mOrientationManager.cleanup();
-        mOrientationManager= null;
 
         mCameraLayerView= null;
 
-        mOverlayView.cleanup();
-        mOverlayView= null;
+        if (mOverlayView != null) {
+            mOverlayView.cleanup();
+            mOverlayView= null;
+        }
 
-        mPowerManagement.cleanup();
-        mPowerManagement = null;
+        if (mPowerManagement != null) {
+            mPowerManagement.cleanup();
+            mPowerManagement = null;
+        }
 
         mCurrentState= STATE_DISABLED;
+        Diagnostics.get().setEngineState(mCurrentState);
+        Diagnostics.get().setEngineInitialized(false);
+        Diagnostics.get().setPointerLayerVisible(false);
 
         mFaceDetectionCountdown.cleanup();
+
+        EyeDroidLog.i(EyeDroidLog.TAG_ENGINE, "Engine cleaned up");
     }
 
     /* Called during camera startup if something goes wrong */
@@ -660,11 +705,14 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
 
         boolean allowRetry = false;
 
+        Diagnostics.get().setLastCameraFailure(cameraException.getLocalizedMessage());
+        Diagnostics.get().setLastInitFailure("camera: " + cameraException.getLocalizedMessage());
+
         if (mCurrentState == STATE_DISABLED) {
             /* Exception during initialization. Non recoverable. */
             cleanup();
 
-            Log.e(EVIACAM.TAG, "Camera initialization failed", cameraException);
+            EyeDroidLog.e(EyeDroidLog.TAG_CAMERA, "Camera initialization failed", cameraException);
 
             /* Notify whoever requested the initialization */
             mHandler.post(new Runnable() {
@@ -688,7 +736,7 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
             }
 
             if (cameraException.getProblem() != CameraException.CAMERA_DISABLED) {
-                Log.e(EVIACAM.TAG, "Camera error", cameraException);
+                EyeDroidLog.e(EyeDroidLog.TAG_CAMERA, "Camera error", cameraException);
             }
         }
 
@@ -720,9 +768,23 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
             });
         }
         AlertDialog ad= adb.create();
-        //noinspection ConstantConditions
-        ad.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
-        ad.show();
+        try {
+            //noinspection ConstantConditions
+            ad.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
+        }
+        catch (Throwable dialogError) {
+            /* some versions refuse this window type, the dialog is still shown */
+            EyeDroidLog.w(EyeDroidLog.TAG_CAMERA,
+                    "Cannot show the camera error above other applications", dialogError);
+        }
+
+        try {
+            ad.show();
+        }
+        catch (Throwable dialogError) {
+            EyeDroidLog.e(EyeDroidLog.TAG_CAMERA,
+                    "Cannot show the camera error dialog", dialogError);
+        }
     }
 
 
@@ -778,6 +840,7 @@ public abstract class CoreEngine implements Engine, FrameProcessor,
             mPrevHeadPitch= pupilDetection.headPitch;
             mHasPrevHeadDirection= true;
             mLastFaceDetectionTimeStamp= System.currentTimeMillis();
+            Diagnostics.get().noteFaceDetected();
         }
         else {
             // the next detection starts a new reference

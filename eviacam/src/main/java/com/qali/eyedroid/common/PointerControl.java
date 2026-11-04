@@ -52,6 +52,10 @@ class PointerControl implements OnSharedPreferenceChangeListener {
     // whether the pointer location has already been set to the center of the layer
     private boolean mCentered= false;
 
+    // last known size of the layer, used to recenter the pointer after a rotation
+    private int mLastWidth= 0;
+    private int mLastHeight= 0;
+
     // view to display the pointer
     private final PointerLayerView mPointerLayerView;
 
@@ -72,7 +76,20 @@ class PointerControl implements OnSharedPreferenceChangeListener {
             @Override
             public void onLayoutChange(View v, int left, int top, int right, int bottom,
                                        int oldLeft, int oldTop, int oldRight, int oldBottom) {
-                if (!mCentered && right > left && bottom > top) center();
+                final int width= right - left;
+                final int height= bottom - top;
+                if (width <= 0 || height <= 0) return;
+
+                /*
+                 * Center on the first layout and again whenever the size changes
+                 * (screen rotation), otherwise the pointer could stay outside the new
+                 * screen and never be seen again.
+                 */
+                if (!mCentered || width != mLastWidth || height != mLastHeight) {
+                    mLastWidth= width;
+                    mLastHeight= height;
+                    center();
+                }
             }
         });
 
@@ -257,13 +274,20 @@ class PointerControl implements OnSharedPreferenceChangeListener {
         // apply rotation
         mOrientationManager.fixVectorOrientation(mCurrMotion);
 
+        /*
+         * While the layer is not laid out there is no valid screen area: keep the
+         * pointer in the middle instead of collapsing it into (-1, -1).
+         */
+        final int width= mPointerLayerView.getWidth();
+        final int height= mPointerLayerView.getHeight();
+        if (width <= 0 || height <= 0) return;
+
         // update pointer location
         mPointerLocation.x+= mCurrMotion.x;
         if (mPointerLocation.x< 0) {
             mPointerLocation.x= 0;
         }
         else {
-            int width= mPointerLayerView.getWidth();
             if (mPointerLocation.x>= width)
                 mPointerLocation.x= width - 1;
         }
@@ -273,7 +297,6 @@ class PointerControl implements OnSharedPreferenceChangeListener {
             mPointerLocation.y= 0;
         }
         else {
-            int height= mPointerLayerView.getHeight();
             if (mPointerLocation.y>= height)
                 mPointerLocation.y= height - 1;
         }

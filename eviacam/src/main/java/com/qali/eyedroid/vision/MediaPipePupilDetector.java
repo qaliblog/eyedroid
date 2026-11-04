@@ -27,6 +27,8 @@ import android.util.Log;
 
 import com.qali.eyedroid.BuildConfig;
 import com.qali.eyedroid.common.EVIACAM;
+import com.qali.eyedroid.debug.Diagnostics;
+import com.qali.eyedroid.debug.EyeDroidLog;
 import com.google.mediapipe.framework.image.BitmapImageBuilder;
 import com.google.mediapipe.framework.image.MPImage;
 import com.google.mediapipe.tasks.components.containers.Category;
@@ -86,6 +88,9 @@ public class MediaPipePupilDetector implements PupilDetector {
 
     private FaceLandmarker mLandmarker;
 
+    /* number of failed detections, used to rate limit the diagnostics */
+    private int mDetectFailures= 0;
+
     @Override
     public boolean initialize(@NonNull Context context) {
         if (mLandmarker != null) return true;
@@ -106,10 +111,15 @@ public class MediaPipePupilDetector implements PupilDetector {
 
             mLandmarker= FaceLandmarker.createFromOptions(context, options);
             if (BuildConfig.DEBUG) Log.d(EVIACAM.TAG, "MediaPipe face detector initialized");
+            Diagnostics.get().setMediaPipeReady(true);
+            EyeDroidLog.i(EyeDroidLog.TAG_MEDIAPIPE, "MediaPipe face landmarker initialized");
             return true;
         }
         catch (Throwable e) {
-            Log.e(EVIACAM.TAG, "MediaPipe face detector could not be initialized", e);
+            Diagnostics.get().setMediaPipeReady(false);
+            Diagnostics.get().setLastMediaPipeFailure(e.toString());
+            EyeDroidLog.e(EyeDroidLog.TAG_MEDIAPIPE,
+                    "MediaPipe face detector could not be initialized", e);
             mLandmarker= null;
             return false;
         }
@@ -133,10 +143,23 @@ public class MediaPipePupilDetector implements PupilDetector {
             MPImage image= new BitmapImageBuilder(upright).build();
 
             FaceLandmarkerResult result= landmarker.detect(image);
-            return extract(result, System.currentTimeMillis());
+
+            PupilDetection detection= extract(result, System.currentTimeMillis());
+            if (detection != null) Diagnostics.get().noteMediaPipeDetection();
+
+            return detection;
         }
         catch (Throwable e) {
-            Log.e(EVIACAM.TAG, "MediaPipe face detection failed", e);
+            /*
+             * A failure per frame would flood the log, so only the first one and then
+             * every hundredth is reported. The debug screen always shows the last one.
+             */
+            mDetectFailures++;
+            if (mDetectFailures == 1 || mDetectFailures % 100 == 0) {
+                Diagnostics.get().setLastMediaPipeFailure(e.toString());
+                EyeDroidLog.e(EyeDroidLog.TAG_MEDIAPIPE, "Face detection failed ("
+                        + mDetectFailures + " times)", e);
+            }
             return null;
         }
         finally {
@@ -275,9 +298,12 @@ public class MediaPipePupilDetector implements PupilDetector {
                 mLandmarker.close();
             }
             catch (Exception e) {
-                Log.w(EVIACAM.TAG, "Error closing MediaPipe face landmarker", e);
+                EyeDroidLog.w(EyeDroidLog.TAG_MEDIAPIPE,
+                        "Error closing the MediaPipe face landmarker", e);
             }
             mLandmarker= null;
         }
+
+        Diagnostics.get().setMediaPipeReady(false);
     }
 }

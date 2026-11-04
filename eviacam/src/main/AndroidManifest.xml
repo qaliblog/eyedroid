@@ -113,6 +113,12 @@
         <activity android:name=".common.TechInfoActivity"
                   android:exported="false" />
 
+        <!-- Debug screen: live logs and runtime diagnostics -->
+        <activity
+            android:name=".debug.DebugActivity"
+            android:label="@string/debug_title"
+            android:exported="false" />
+
     </application>
 
 </manifest>

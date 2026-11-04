@@ -21,6 +21,7 @@ package com.qali.eyedroid.common;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 import android.preference.CheckBoxPreference;
@@ -29,9 +30,12 @@ import android.preference.Preference;
 import android.preference.Preference.OnPreferenceChangeListener;
 import android.preference.PreferenceFragment;
 import android.preference.PreferenceGroup;
+import android.widget.Toast;
 
 import com.qali.eyedroid.BuildConfig;
 import com.qali.eyedroid.R;
+import com.qali.eyedroid.debug.DebugActivity;
+import com.qali.eyedroid.learning.LearningManager;
 import com.qali.eyedroid.util.NumberPickerPreference;
 
 /**
@@ -79,6 +83,10 @@ public class MousePreferencesActivity extends Activity {
         private boolean getSlaveMode() {
             return getArguments().getBoolean("slaveMode");
         }
+
+        /* entries of the intelligent learning category */
+        private Preference mLearnedScreens;
+        private Preference mLearnedInteractions;
 
         @Override
         public void onCreate(Bundle savedInstanceState) {
@@ -175,6 +183,36 @@ public class MousePreferencesActivity extends Activity {
             });
 
             /*
+             * Debug screen, directly accessible (no hidden gesture required)
+             */
+            Preference debugPreference = getPreferenceScreen().findPreference("debug");
+            if (debugPreference != null) {
+                debugPreference.setOnPreferenceClickListener(
+                        new Preference.OnPreferenceClickListener() {
+                    @Override
+                    public boolean onPreferenceClick(Preference preference) {
+                        startActivity(new Intent(getActivity(), DebugActivity.class));
+                        return true;
+                    }
+                });
+            }
+
+            /*
+             * Intelligent learning. Slave mode uses its own preference storage and must
+             * never activate learning, so the whole category is removed there.
+             */
+            PreferenceGroup learningCategory = (PreferenceGroup) getPreferenceScreen()
+                    .findPreference("learning_settings");
+            if (slaveMode) {
+                if (learningCategory != null) {
+                    getPreferenceScreen().removePreference(learningCategory);
+                }
+            }
+            else if (learningCategory != null) {
+                setupLearningPreferences();
+            }
+
+            /*
              * Listeners for list preference entries
              */
             ListPreference lp = (ListPreference) findPreference(Preferences.KEY_TIME_WITHOUT_DETECTION);
@@ -182,6 +220,93 @@ public class MousePreferencesActivity extends Activity {
 
             lp = (ListPreference) findPreference(Preferences.KEY_UI_ELEMENTS_SIZE);
             lp.setOnPreferenceChangeListener(new ListPreferenceUpdate(lp));
+        }
+
+        @Override
+        public void onResume() {
+            super.onResume();
+            if (mLearnedScreens != null || mLearnedInteractions != null) {
+                updateLearningSummaries();
+            }
+        }
+
+        /**
+         * Wire the intelligent learning category. The category is not present in slave
+         * mode, so this is only called in the main (accessibility service) settings.
+         */
+        private void setupLearningPreferences() {
+            LearningManager.get().attach(getActivity().getApplicationContext());
+
+            mLearnedScreens = findPreference("learning_screens");
+            mLearnedInteractions = findPreference("learning_interactions");
+
+            updateLearningSummaries();
+
+            Preference reset = findPreference("learning_reset");
+            if (reset != null) {
+                reset.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                    @Override
+                    public boolean onPreferenceClick(Preference preference) {
+                        showResetLearnedDataDialog();
+                        return true;
+                    }
+                });
+            }
+
+            /*
+             * Only the summaries need to follow the toggle: the learning manager listens
+             * to the preference itself, so enabling/disabling takes effect immediately.
+             */
+            Preference enable = findPreference(Preferences.KEY_LEARNING_ENABLED);
+            if (enable != null) {
+                enable.setOnPreferenceChangeListener(new OnPreferenceChangeListener() {
+                    @Override
+                    public boolean onPreferenceChange(Preference preference, Object newValue) {
+                        boolean enabled = Boolean.TRUE.equals(newValue);
+                        preference.setSummary(enabled
+                                ? R.string.settings_learning_enable_summary
+                                : R.string.settings_learning_enable_summary_off);
+                        return true;
+                    }
+                });
+            }
+        }
+
+        private void updateLearningSummaries() {
+            LearningManager learningManager = LearningManager.get();
+
+            if (mLearnedScreens != null) {
+                mLearnedScreens.setSummary(getString(
+                        R.string.settings_learning_screens_summary,
+                        learningManager.getLearnedScreenCount()));
+            }
+
+            if (mLearnedInteractions != null) {
+                mLearnedInteractions.setSummary(getString(
+                        R.string.settings_learning_interactions_summary,
+                        learningManager.getRecordedInteractionCount()));
+            }
+        }
+
+        private void showResetLearnedDataDialog() {
+            new AlertDialog.Builder(getActivity())
+                    .setTitle(R.string.learning_reset_title)
+                    .setMessage(R.string.learning_reset_message)
+                    .setNegativeButton(R.string.learning_reset_cancel, null)
+                    .setPositiveButton(R.string.learning_reset_confirm,
+                            new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            boolean success = LearningManager.get().resetLearnedData();
+                            updateLearningSummaries();
+
+                            Toast.makeText(getActivity(),
+                                    success ? R.string.learning_reset_done
+                                            : R.string.learning_reset_failed,
+                                    Toast.LENGTH_LONG).show();
+                        }
+                    })
+                    .show();
         }
     }
 

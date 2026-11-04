@@ -65,6 +65,7 @@ public class Preferences {
     private static final String KEY_RUN_TUTORIAL= "run_tutorial";
     private static final String KEY_SHOW_LAUNCHER_HELP= "show_launcher_help";
     public static final String KEY_USE_CAMERA2_API= "use_camera2_api";
+    public static final String KEY_LEARNING_ENABLED= "learning_enabled";
     private static final String KEY_ENGINE_WAS_RUNNING= "engine_was_running";
     private static final String KEY_SHOW_CONTEXT_MENU_HELP = "display_context_menu_help";
 
@@ -518,6 +519,16 @@ public class Preferences {
         SharedPreferences.Editor spe= mSharedPreferences.edit();
         spe.putBoolean(Preferences.KEY_SHOW_CONTEXT_MENU_HELP, v);
         spe.apply();
+    }
+
+    /**
+     * Get whether the intelligent learning subsystem is enabled. Disabled by default:
+     * nothing is observed nor stored until the user turns it on.
+     *
+     * @return true when learning is enabled
+     */
+    public boolean getLearningEnabled() {
+        return mSharedPreferences.getBoolean(Preferences.KEY_LEARNING_ENABLED, false);
     }
  }
  

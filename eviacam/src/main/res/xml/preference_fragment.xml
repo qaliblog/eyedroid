@@ -228,6 +228,33 @@
     </PreferenceCategory>
 
     <PreferenceCategory
+        android:key="learning_settings"
+        android:title="@string/settings_learning">
+
+        <CheckBoxPreference
+            android:key="learning_enabled"
+            android:title="@string/settings_learning_enable"
+            android:summary="@string/settings_learning_enable_summary_off"
+            android:defaultValue="false" />
+
+        <Preference
+            android:key="learning_screens"
+            android:title="@string/settings_learning_screens"
+            android:selectable="false" />
+
+        <Preference
+            android:key="learning_interactions"
+            android:title="@string/settings_learning_interactions"
+            android:selectable="false" />
+
+        <Preference
+            android:key="learning_reset"
+            android:title="@string/settings_learning_reset"
+            android:summary="@string/settings_learning_reset_summary" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
         android:key="help"
         android:title="@string/settings_help">
 
@@ -236,6 +263,12 @@
             android:title="@string/settings_send_anon_error_reports"
             android:defaultValue="true"
         />
+
+        <Preference
+            android:key="debug"
+            android:title="@string/settings_debug"
+            android:summary="@string/settings_debug_summary"
+            android:icon="@drawable/ic_debug" />
 
         <Preference
             android:key="version"

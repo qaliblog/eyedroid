@@ -22,6 +22,8 @@ import android.app.Application;
 import android.os.Process;
 import android.util.Log;
 
+import com.qali.eyedroid.learning.LearningManager;
+
 /**
  * Customized application class
  */
@@ -55,6 +57,13 @@ public class EViacamApplication extends Application {
          */
 
         Analytics.init(this);
+
+        /*
+         * Keep an application context for the learning subsystem so that the settings
+         * and debug screens can report what has been learned even while the
+         * accessibility service is not connected.
+         */
+        LearningManager.get().attach(this);
 
         // Raise priority to improve responsiveness
         Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_DISPLAY);

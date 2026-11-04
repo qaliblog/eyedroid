@@ -21,6 +21,8 @@ package com.qali.eyedroid.a11yservice;
 
 import android.accessibilityservice.AccessibilityService;
 import android.app.AlertDialog;
+import android.os.Handler;
+import android.os.Looper;
 import android.content.BroadcastReceiver;
 import android.content.ComponentCallbacks;
 import android.content.Context;
@@ -40,6 +42,9 @@ import com.qali.eyedroid.common.Analytics;
 import com.qali.eyedroid.common.CrashRegister;
 import com.qali.eyedroid.common.Engine;
 import com.qali.eyedroid.common.Preferences;
+import com.qali.eyedroid.debug.Diagnostics;
+import com.qali.eyedroid.debug.EyeDroidLog;
+import com.qali.eyedroid.learning.LearningManager;
 
 /**
  * The Enable Viacam accessibility service
@@ -48,6 +53,17 @@ public class TheAccessibilityService extends AccessibilityService
         implements ComponentCallbacks, Engine.OnInitListener {
 
     private static final String TAG = "TheAccessibilityService";
+
+    /* Results of retryEngine() */
+    public static final int RETRY_STARTED = 0;
+    public static final int RETRY_UNAVAILABLE = 1;
+    public static final int RETRY_RATE_LIMITED = 2;
+
+    /* Restart rate limit, so that a broken device cannot enter a restart loop */
+    private static final long RETRY_WINDOW_MS = 60000;
+    private static final int MAX_RETRIES_PER_WINDOW = 3;
+    private final long[] mRetryTimes = new long[MAX_RETRIES_PER_WINDOW];
+    private int mRetryIndex = 0;
 
     private static TheAccessibilityService sTheAccessibilityService;
 
@@ -115,6 +131,7 @@ public class TheAccessibilityService extends AccessibilityService
 
         mServiceStarted= true;
         sTheAccessibilityService= this;
+        EyeDroidLog.i(EyeDroidLog.TAG_SERVICE, "Accessibility service starting");
 
          /* When preferences are not properly initialized (i.e. is in slave mode)
            the call will return null. As is not possible to stop the accessibility
@@ -124,6 +141,13 @@ public class TheAccessibilityService extends AccessibilityService
         // Service notification
         mServiceNotification= new ServiceNotification(this, mServiceNotificationReceiver);
         mServiceNotification.init();
+
+        /*
+         * Intelligent learning is independent of the engine: start observing
+         * accessibility events as soon as the service is connected. It does nothing
+         * unless the user enabled it in the settings.
+         */
+        LearningManager.get().onServiceConnected(this);
 
         /*
          * If crashed recently, abort initialization to avoid several crash messages in a row.
@@ -141,6 +165,9 @@ public class TheAccessibilityService extends AccessibilityService
          * such a reboot, do not start.
          */
         if (!Preferences.get().getEngineWasRunning()) {
+            EyeDroidLog.w(EyeDroidLog.TAG_SERVICE,
+                    "Engine was stopped by the user before, not starting it automatically. "
+                            + "Use the notification to start it again.");
             mServiceNotification.update(ServiceNotification.NOTIFICATION_ACTION_START);
             return;
         }
@@ -153,6 +180,10 @@ public class TheAccessibilityService extends AccessibilityService
      */
     private void cleanup() {
         sTheAccessibilityService= null;
+
+        Diagnostics.get().setServiceConnected(false);
+        LearningManager.get().onServiceDisconnected();
+        EyeDroidLog.i(EyeDroidLog.TAG_SERVICE, "Accessibility service stopped");
 
         cleanupEngine();
 
@@ -183,8 +214,10 @@ public class TheAccessibilityService extends AccessibilityService
         /* Init the main engine */
         mEngine = EngineSelector.initAccessibilityServiceModeEngine();
         if (mEngine == null) {
-            Log.e(TAG, "Cannot initialize CoreEngine in A11Y mode");
+            Diagnostics.get().setLastInitFailure("engine not available (slave mode running?)");
+            EyeDroidLog.e(EyeDroidLog.TAG_ENGINE, "Cannot initialize CoreEngine in A11Y mode");
         } else {
+            EyeDroidLog.i(EyeDroidLog.TAG_ENGINE, "Initializing engine");
             mEngine.init(this, this);
         }
     }
@@ -196,11 +229,13 @@ public class TheAccessibilityService extends AccessibilityService
     @Override
     public void onInit(int status) {
         if (status == Engine.OnInitListener.INIT_SUCCESS) {
+            EyeDroidLog.i(EyeDroidLog.TAG_ENGINE, "Engine initialization completed");
             initEnginePhase2();
         }
         else {
-            // Initialization failed
-            Log.e(TAG, "Cannot initialize CoreEngine in A11Y mode");
+            // Initialization failed (e.g. the camera could not be opened)
+            Diagnostics.get().setLastInitFailure("engine initialization failed");
+            EyeDroidLog.e(EyeDroidLog.TAG_ENGINE, "Cannot initialize CoreEngine in A11Y mode");
             cleanupEngine();
             mServiceNotification.update(ServiceNotification.NOTIFICATION_ACTION_START);
         }
@@ -212,6 +247,7 @@ public class TheAccessibilityService extends AccessibilityService
     private void initEnginePhase2() {
         Analytics.get().trackStartService();
 
+        Diagnostics.get().setEngineInitialized(true);
         Preferences.get().setEngineWasRunning(true);
 
         /* The configuration wizard is not bundled in this build, start the engine */
@@ -225,6 +261,7 @@ public class TheAccessibilityService extends AccessibilityService
     private void cleanupEngine() {
         if (null == mEngine) return;
 
+        EyeDroidLog.i(EyeDroidLog.TAG_ENGINE, "Cleaning up the engine");
         Analytics.get().trackStopService();
 
         if (mEngine!= null) {
@@ -233,6 +270,9 @@ public class TheAccessibilityService extends AccessibilityService
         }
 
         EngineSelector.releaseAccessibilityServiceModeEngine();
+
+        Diagnostics.get().resetRuntimeStatus();
+        Diagnostics.get().setServiceConnected(sTheAccessibilityService != null);
 
         mServiceNotification.update(ServiceNotification.NOTIFICATION_ACTION_START);
     }
@@ -264,7 +304,8 @@ public class TheAccessibilityService extends AccessibilityService
      */
     @Override
     public void onServiceConnected() {
-        Log.i(TAG, "onServiceConnected");
+        EyeDroidLog.i(EyeDroidLog.TAG_SERVICE, "onServiceConnected");
+        Diagnostics.get().setServiceConnected(true);
         init();
     }
 
@@ -302,6 +343,44 @@ public class TheAccessibilityService extends AccessibilityService
         if (mEngine != null) {
             mEngine.onAccessibilityEvent(event);
         }
+
+        /* learning is independent of the engine and no-op when disabled */
+        LearningManager.get().onAccessibilityEvent(event);
+    }
+
+    /**
+     * Restart the engine without touching the accessibility service.
+     *
+     * Used by the debug screen when the cursor is not working. Restarts are rate
+     * limited so that a broken camera or overlay cannot produce an endless loop.
+     *
+     * @return {@link #RETRY_STARTED}, {@link #RETRY_UNAVAILABLE} or
+     *         {@link #RETRY_RATE_LIMITED}
+     */
+    public int retryEngine() {
+        final long now = System.currentTimeMillis();
+
+        if (mRetryTimes[mRetryIndex] > now - RETRY_WINDOW_MS) {
+            EyeDroidLog.w(EyeDroidLog.TAG_SERVICE,
+                    "Engine restart refused: too many restarts requested recently");
+            return RETRY_RATE_LIMITED;
+        }
+
+        mRetryTimes[mRetryIndex] = now;
+        mRetryIndex = (mRetryIndex + 1) % MAX_RETRIES_PER_WINDOW;
+
+        Diagnostics.get().noteEngineRetry();
+        EyeDroidLog.i(EyeDroidLog.TAG_SERVICE, "Engine restart requested from the debug screen");
+
+        new Handler(Looper.getMainLooper()).post(new Runnable() {
+            @Override
+            public void run() {
+                cleanupEngine();
+                initEngine();
+            }
+        });
+
+        return RETRY_STARTED;
     }
 
     /**

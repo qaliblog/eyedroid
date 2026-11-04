@@ -24,6 +24,9 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import android.util.Log;
 
+import com.qali.eyedroid.debug.Diagnostics;
+import com.qali.eyedroid.debug.EyeDroidLog;
+
 /**
  * Manage uncaught exceptions
  *
@@ -64,6 +67,10 @@ class UncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
     public void uncaughtException(@Nullable Thread thread, @NonNull Throwable ex) {
         Class<?> cls= ex.getClass();
         Log.i(EVIACAM.TAG, "Uncaught exception:" + cls.getName());
+
+        /* keep the last uncaught exception for the debug screen */
+        EyeDroidLog.e(EyeDroidLog.TAG_DEBUG, "Uncaught exception", ex);
+        Diagnostics.recordUncaughtException(mContext, ex);
 
         /* Suppress spurious IllegalArgumentException at
            android.view.Surface.nativeUnlockCanvasAndPost */

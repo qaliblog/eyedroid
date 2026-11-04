@@ -280,4 +280,49 @@
     <string name="max_cameras_in_use">Max cameras in use</string>
     <!-- assorted start -->
 
+    <!-- Intelligent learning start -->
+    <string name="settings_learning">Intelligent learning</string>
+    <string name="settings_learning_enable">Enable learning</string>
+    <string name="settings_learning_enable_summary">Learn screen layouts and navigation from your interactions. Everything stays on this device.</string>
+    <string name="settings_learning_enable_summary_off">Off: nothing is observed or stored</string>
+    <string name="settings_learning_screens">Learned screens</string>
+    <string name="settings_learning_screens_summary">%1$d screens stored on this device</string>
+    <string name="settings_learning_interactions">Recorded interactions</string>
+    <string name="settings_learning_interactions_summary">%1$d interactions stored on this device</string>
+    <string name="settings_learning_reset">Reset learned data</string>
+    <string name="settings_learning_reset_summary">Delete all learned screens and interactions</string>
+    <string name="learning_reset_title">Reset learned data?</string>
+    <string name="learning_reset_message">All learned screen layouts, elements and navigation history will be deleted.\n\nYour EyeDroid settings, calibration and facial tracking preferences are not affected, and learning stays enabled if it already is.</string>
+    <string name="learning_reset_confirm">Reset</string>
+    <string name="learning_reset_cancel">Cancel</string>
+    <string name="learning_reset_done">Learned data deleted</string>
+    <string name="learning_reset_failed">Could not delete the learned data</string>
+    <!-- Intelligent learning end -->
+
+    <!-- Debug screen start -->
+    <string name="settings_debug">Debug</string>
+    <string name="settings_debug_summary">Live logs, runtime diagnostics and error details</string>
+    <string name="debug_title">EyeDroid debug</string>
+    <string name="debug_tab_logs">Logs</string>
+    <string name="debug_tab_diagnostics">Diagnostics</string>
+    <string name="debug_pause">Pause</string>
+    <string name="debug_resume">Resume</string>
+    <string name="debug_clear">Clear</string>
+    <string name="debug_share">Share</string>
+    <string name="debug_refresh">Refresh</string>
+    <string name="debug_share_title">EyeDroid logs</string>
+    <string name="debug_retry_engine">Retry engine</string>
+    <string name="debug_retry_started">Engine restart requested</string>
+    <string name="debug_retry_unavailable">The accessibility service is not connected</string>
+    <string name="debug_retry_limited">Too many restarts requested, wait a moment</string>
+    <string name="debug_retry_hint">Retry engine recreates the engine only: the accessibility service stays enabled. Restarts are limited to three per minute.</string>
+    <string name="debug_adb_help">Full system logs are not readable by an app on modern Android. Use ADB:\nadb logcat -s EyeDroid-Service EyeDroid-Engine EyeDroid-Camera EyeDroid-MediaPipe EyeDroid-Overlay EyeDroid-Cursor EyeDroid-Learning EyeDroid-Debug</string>
+    <string name="debug_filter_all">All</string>
+    <string name="debug_filter_error">Error</string>
+    <string name="debug_filter_warning">Warning</string>
+    <string name="debug_filter_info">Info</string>
+    <string name="debug_filter_debug">Debug</string>
+    <string name="debug_no_logs">No log entries yet</string>
+    <!-- Debug screen end -->
+
 </resources>

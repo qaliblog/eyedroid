@@ -23,6 +23,9 @@ import android.graphics.PointF;
 import androidx.annotation.NonNull;
 import android.view.View;
 
+import com.qali.eyedroid.debug.Diagnostics;
+import com.qali.eyedroid.debug.EyeDroidLog;
+
 public class MouseEmulation implements MotionProcessor {
     /*
      * states of the engine
@@ -69,6 +72,8 @@ public class MouseEmulation implements MotionProcessor {
         // pointer layer (should be the last one)
         mPointerLayer= new PointerLayerView(c);
         ov.addFullScreenLayer(mPointerLayer);
+        Diagnostics.get().setPointerLayerAttached(true);
+        EyeDroidLog.i(EyeDroidLog.TAG_CURSOR, "Pointer layer attached to the overlay");
 
         /*
          * control stuff
@@ -84,6 +89,7 @@ public class MouseEmulation implements MotionProcessor {
         if (!mPointerEnabled) {
             mPointerControl.reset();
             mPointerLayer.setVisibility(View.VISIBLE);
+            Diagnostics.get().setPointerLayerVisible(true);
 
             mPointerEnabled= true;
         }
@@ -95,6 +101,7 @@ public class MouseEmulation implements MotionProcessor {
     public void disablePointer() {
         if (mPointerEnabled) {
             mPointerLayer.setVisibility(View.INVISIBLE);
+            Diagnostics.get().setPointerLayerVisible(false);
 
             mPointerEnabled= false;
         }
@@ -125,6 +132,9 @@ public class MouseEmulation implements MotionProcessor {
         /* Pointer layer */
         mPointerControl.reset();
         mPointerLayer.setVisibility(mPointerEnabled? View.VISIBLE : View.INVISIBLE);
+        Diagnostics.get().setPointerLayerVisible(mPointerEnabled);
+        EyeDroidLog.i(EyeDroidLog.TAG_CURSOR,
+                mPointerEnabled ? "Pointer enabled" : "Pointer disabled by settings");
 
         /* Click */
         mDwellClick.reset();
@@ -138,6 +148,8 @@ public class MouseEmulation implements MotionProcessor {
 
         mPointerLayer.setBlinkPressed(false);
         mPointerLayer.setVisibility(View.INVISIBLE);
+        Diagnostics.get().setPointerLayerVisible(false);
+        EyeDroidLog.i(EyeDroidLog.TAG_CURSOR, "Pointer hidden, engine stopped");
 
         mState = STATE_STOPPED;
     }
@@ -182,6 +194,8 @@ public class MouseEmulation implements MotionProcessor {
     @Override
     public void processMotion(@NonNull PointF motion) {
         if (mState != STATE_RUNNING) return;
+
+        Diagnostics.get().notePointerUpdate();
 
         // update pointer location given motion
         mPointerControl.updateMotion(motion);
