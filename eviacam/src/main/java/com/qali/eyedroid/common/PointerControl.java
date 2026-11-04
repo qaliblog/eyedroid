@@ -23,6 +23,7 @@ import android.content.SharedPreferences;
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
 import android.graphics.PointF;
 import androidx.annotation.NonNull;
+import android.view.View;
 
 import java.lang.Math;
 
@@ -48,6 +49,9 @@ class PointerControl implements OnSharedPreferenceChangeListener {
     // pointer location in screen coordinates
     private PointF mPointerLocation= new PointF();
 
+    // whether the pointer location has already been set to the center of the layer
+    private boolean mCentered= false;
+
     // view to display the pointer
     private final PointerLayerView mPointerLayerView;
 
@@ -57,6 +61,20 @@ class PointerControl implements OnSharedPreferenceChangeListener {
     PointerControl(@NonNull PointerLayerView pv, @NonNull OrientationManager om) {
         mPointerLayerView= pv;
         mOrientationManager= om;
+
+        /*
+         * The layer has no size until it is laid out, which happens after the engine has
+         * been initialized. Until then the pointer would stay at (0, 0), i.e. in the
+         * top-left corner of the screen where it is not visible, so center it as soon as
+         * the real size of the layer is known.
+         */
+        mPointerLayerView.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+            @Override
+            public void onLayoutChange(View v, int left, int top, int right, int bottom,
+                                       int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                if (!mCentered && right > left && bottom > top) center();
+            }
+        });
 
         // register preference change listener
         Preferences.get().getSharedPreferences().registerOnSharedPreferenceChangeListener(this);
@@ -150,8 +168,25 @@ class PointerControl implements OnSharedPreferenceChangeListener {
      * Reset pointer location by centering it
      */
     public void reset () {
+        if (mPointerLayerView.getWidth() <= 0 || mPointerLayerView.getHeight() <= 0) {
+            // not laid out yet, center() will be called when the size is known
+            mCentered= false;
+            return;
+        }
+
+        center();
+    }
+
+    /**
+     * Place the pointer in the middle of the layer and refresh it
+     */
+    private void center () {
         mPointerLocation.x = mPointerLayerView.getWidth() / 2;
         mPointerLocation.y = mPointerLayerView.getHeight() / 2;
+        mCentered= true;
+
+        mPointerLayerView.updatePosition(mPointerLocation);
+        mPointerLayerView.postInvalidate();
     }
 
     // current motion (avoid creating an instance for each updateMotion call)
